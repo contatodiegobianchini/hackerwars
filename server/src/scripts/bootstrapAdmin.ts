@@ -2,12 +2,13 @@ import bcrypt from 'bcryptjs';
 import { db, dbHelpers } from '../database/sqlite.js';
 
 const ADMIN_USERNAME = 'Diegodev';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const configuredAdminPassword = process.env.ADMIN_PASSWORD;
 
-if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 20) {
+if (!configuredAdminPassword || configuredAdminPassword.length < 20) {
   throw new Error('ADMIN_PASSWORD must be configured and contain at least 20 characters.');
 }
 
+const ADMIN_PASSWORD: string = configuredAdminPassword;
 const now = Date.now();
 const existing = dbHelpers.getUserByUsername(ADMIN_USERNAME);
 
