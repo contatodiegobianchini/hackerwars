@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/secure-server.ts",
     "build": "tsc",
-    "start": "node dist/scripts/bootstrapAdmin.js && node dist/index.js"
+    "start": "node dist/secure-server.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
