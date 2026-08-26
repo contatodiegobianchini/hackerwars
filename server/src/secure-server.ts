@@ -31,7 +31,7 @@ type AuthClaims = {
 };
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const configuredAdminPassword = process.env.ADMIN_PASSWORD;
 const ADMIN_USERNAME = 'Diegodev';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN?.trim();
 
@@ -39,9 +39,11 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be configured and contain at least 32 characters.');
 }
 
-if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 20) {
+if (!configuredAdminPassword || configuredAdminPassword.length < 20) {
   throw new Error('ADMIN_PASSWORD must be configured and contain at least 20 characters.');
 }
+
+const ADMIN_PASSWORD: string = configuredAdminPassword;
 
 const verifyJwt = (token: unknown): AuthClaims | null => {
   if (typeof token !== 'string' || token.length < 20) return null;
@@ -75,7 +77,11 @@ const hardenedCors = (options: any = {}) => originalCors({
   ...options,
   origin: FRONTEND_ORIGIN || false,
 });
-require.cache[corsPath].exports = hardenedCors;
+const corsModule = require.cache[corsPath];
+if (!corsModule) {
+  throw new Error('Failed to resolve the cors module cache entry.');
+}
+corsModule.exports = hardenedCors;
 
 const expressAny = express as any;
 const originalUse = expressAny.application.use;
@@ -250,7 +256,6 @@ if (existingAdmin) {
 
 await import('./index.js');
 
-// index.ts seeds the old demo account during module initialization. Remove it after startup.
 db.prepare("DELETE FROM players WHERE user_id IN (SELECT id FROM users WHERE lower(username) = 'zero_cool')").run();
 db.prepare("DELETE FROM users WHERE lower(username) = 'zero_cool'").run();
 
