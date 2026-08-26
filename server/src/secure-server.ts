@@ -2,6 +2,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import bcrypt from 'bcryptjs';
+import { createRequire } from 'node:module';
 import { db, dbHelpers } from './database/sqlite.js';
 import { GameWorld } from './engine/GameWorld.js';
 
@@ -14,6 +15,7 @@ type AuthClaims = {
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_USERNAME = 'Diegodev';
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN?.trim();
 
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be configured and contain at least 32 characters.');
@@ -43,6 +45,22 @@ const verifyJwt = (token: unknown): AuthClaims | null => {
   }
 };
 
+const originAllowed = (origin?: string): boolean => {
+  if (!origin) return true;
+  if (!FRONTEND_ORIGIN) return false;
+  return origin === FRONTEND_ORIGIN;
+};
+
+// Harden the CORS package before index.ts imports it.
+const require = createRequire(import.meta.url);
+const corsPath = require.resolve('cors');
+const originalCors = require(corsPath);
+const hardenedCors = (options: any = {}) => originalCors({
+  ...options,
+  origin: FRONTEND_ORIGIN || false,
+});
+require.cache[corsPath].exports = hardenedCors;
+
 // Harden Express before the application creates routes.
 const expressAny = express as any;
 const originalUse = expressAny.application.use;
@@ -58,7 +76,9 @@ const securityMiddleware = (req: any, res: any, next: any) => {
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
-  if (req.path === '/api/auth/login' || req.path === '/api/auth/register') {
+  const isAuthEndpoint = req.path === '/api/auth/login' || req.path === '/api/auth/register';
+
+  if (isAuthEndpoint) {
     const now = Date.now();
     const key = `${req.ip}:${req.path}`;
     const current = rateState.get(key);
@@ -71,6 +91,17 @@ const securityMiddleware = (req: any, res: any, next: any) => {
         res.setHeader('Retry-After', '60');
         return res.status(429).json({ error: 'Muitas tentativas. Aguarde um minuto e tente novamente.' });
       }
+    }
+
+    // Prevent username enumeration without changing successful responses.
+    if (req.path === '/api/auth/login') {
+      const originalJson = res.json.bind(res);
+      res.json = (body: any) => {
+        if (res.statusCode === 401) {
+          return originalJson({ error: 'Credenciais inválidas.' });
+        }
+        return originalJson(body);
+      };
     }
   }
 
@@ -87,7 +118,27 @@ expressAny.application.use = function patchedUse(this: any, ...args: any[]) {
 };
 
 const originalJson = expressAny.json;
-expressAny.json = (options: any = {}) => originalJson({ limit: '100kb', ...options });
+expressAny.json = (options: any = {}) => {
+  const parser = originalJson({ limit: '100kb', ...options });
+
+  return (req: any, res: any, next: any) => parser(req, res, (error: any) => {
+    if (error) return next(error);
+
+    if ((req.path === '/api/auth/login' || req.path === '/api/auth/register') && req.body) {
+      const { username, password } = req.body;
+
+      if (typeof username !== 'string' || typeof password !== 'string') {
+        return res.status(400).json({ error: 'Dados de autenticação inválidos.' });
+      }
+
+      if (req.path === '/api/auth/register' && password.length < 12) {
+        return res.status(400).json({ error: 'A senha deve ter pelo menos 12 caracteres.' });
+      }
+    }
+
+    next();
+  });
+};
 
 // Harden Socket.IO before index.ts registers its connection handler.
 const socketServerAny = SocketIOServer as any;
@@ -98,6 +149,12 @@ socketServerAny.prototype.on = function patchedServerOn(this: any, event: string
   }
 
   const securedListener = (socket: Socket, ...args: any[]) => {
+    const origin = socket.handshake.headers.origin;
+    if (!originAllowed(origin)) {
+      socket.disconnect(true);
+      return;
+    }
+
     const claims = verifyJwt(socket.handshake.auth?.token);
     if (!claims) {
       socket.emit('auth_error', { message: 'Autenticação do socket inválida.' });
@@ -120,7 +177,22 @@ socketPrototypeAny.on = function patchedSocketOn(this: any, event: string, liste
     return this;
   }
 
-  return originalSocketOn.call(this, event, listener);
+  const guardedListener = (...args: any[]) => {
+    try {
+      const payloadSize = JSON.stringify(args)?.length ?? 0;
+      if (payloadSize > 64_000) {
+        this.emit('error', new Error('Payload do socket excede o limite permitido.'));
+        return;
+      }
+    } catch {
+      this.emit('error', new Error('Payload do socket inválido.'));
+      return;
+    }
+
+    return listener(...args);
+  };
+
+  return originalSocketOn.call(this, event, guardedListener);
 };
 
 // Patch admin authorization to be DB-backed and exclusive to Diegodev.
@@ -140,6 +212,18 @@ dbHelpers.updateUserRole = (userId: string, role: 'admin' | 'player'): boolean =
     ? 'player'
     : role;
   return originalUpdateUserRole(userId, safeRole);
+};
+
+// Enforce strong passwords on admin resets too.
+const originalUpdateUserPassword = dbHelpers.updateUserPassword;
+dbHelpers.updateUserPassword = (userId: string, newPlainPassword: string): boolean => {
+  const user = dbHelpers.getUserById(userId);
+  if (!user) return false;
+  const minimumLength = user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() ? 20 : 12;
+  if (typeof newPlainPassword !== 'string' || newPlainPassword.length < minimumLength) {
+    return false;
+  }
+  return originalUpdateUserPassword(userId, newPlainPassword);
 };
 
 // Normalize the database to exactly one administrator before index.ts starts.
