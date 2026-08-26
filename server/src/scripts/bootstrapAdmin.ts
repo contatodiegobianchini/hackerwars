@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { db, dbHelpers } from '../database/sqlite.js';
 
-const ADMIN_USERNAME = 'diegodev';
+const ADMIN_USERNAME = 'Diegodev';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 20) {
@@ -25,9 +25,8 @@ function action(user: ReturnType<typeof dbHelpers.getUserByUsername>) {
     return;
   }
 
-  const { userId, player } = dbHelpers.createUser(ADMIN_USERNAME, bcrypt.hashSync(ADMIN_PASSWORD, 12));
+  const { userId } = dbHelpers.createUser(ADMIN_USERNAME, bcrypt.hashSync(ADMIN_PASSWORD, 12));
   db.prepare("UPDATE users SET role = 'admin', is_banned = 0, ban_reason = NULL WHERE id = ?").run(userId);
   db.prepare('UPDATE players SET data = json_set(data, \'$.role\', \'admin\', \'$.isBanned\', false), updated_at = ? WHERE user_id = ?').run(now, userId);
-  void player;
   console.log('Admin Diegodev created successfully.');
 }
