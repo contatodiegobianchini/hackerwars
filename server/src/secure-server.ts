@@ -124,14 +124,23 @@ socketPrototypeAny.on = function patchedSocketOn(this: any, event: string, liste
 };
 
 // Patch admin authorization to be DB-backed and exclusive to Diegodev.
-const originalVerifyIsAdmin = GameWorld.prototype.verifyIsAdmin;
 GameWorld.prototype.verifyIsAdmin = function secureVerifyIsAdmin(adminUserId: string): boolean {
   const user = dbHelpers.getUserById(adminUserId);
   if (!user) return false;
   const row = db.prepare('SELECT role FROM users WHERE id = ?').get(adminUserId) as { role?: string } | undefined;
   return user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && row?.role === 'admin';
 };
-void originalVerifyIsAdmin;
+
+// Prevent the existing admin panel from promoting anyone other than Diegodev.
+const originalUpdateUserRole = dbHelpers.updateUserRole;
+dbHelpers.updateUserRole = (userId: string, role: 'admin' | 'player'): boolean => {
+  const user = dbHelpers.getUserById(userId);
+  if (!user) return false;
+  const safeRole = role === 'admin' && user.username.toLowerCase() !== ADMIN_USERNAME.toLowerCase()
+    ? 'player'
+    : role;
+  return originalUpdateUserRole(userId, safeRole);
+};
 
 // Normalize the database to exactly one administrator before index.ts starts.
 db.prepare("UPDATE users SET role = 'player'").run();
