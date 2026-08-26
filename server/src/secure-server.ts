@@ -6,6 +6,24 @@ import { createRequire } from 'node:module';
 import { db, dbHelpers } from './database/sqlite.js';
 import { GameWorld } from './engine/GameWorld.js';
 
+const require = createRequire(import.meta.url);
+const httpModule = require('node:http');
+
+let capturedServer: any = null;
+const originalCreateServer = httpModule.createServer;
+const originalServerListen = httpModule.Server.prototype.listen;
+
+httpModule.createServer = function hardenedCreateServer(...args: any[]) {
+  capturedServer = originalCreateServer.apply(this, args);
+  return capturedServer;
+};
+
+// Vercel owns the HTTP listener. Prevent the application from opening its own port.
+httpModule.Server.prototype.listen = function hardenedListen(...args: any[]) {
+  if (process.env.VERCEL) return this;
+  return originalServerListen.apply(this, args);
+};
+
 type AuthClaims = {
   userId: string;
   username: string;
@@ -51,8 +69,6 @@ const originAllowed = (origin?: string): boolean => {
   return origin === FRONTEND_ORIGIN;
 };
 
-// Harden the CORS package before index.ts imports it.
-const require = createRequire(import.meta.url);
 const corsPath = require.resolve('cors');
 const originalCors = require(corsPath);
 const hardenedCors = (options: any = {}) => originalCors({
@@ -61,7 +77,6 @@ const hardenedCors = (options: any = {}) => originalCors({
 });
 require.cache[corsPath].exports = hardenedCors;
 
-// Harden Express before the application creates routes.
 const expressAny = express as any;
 const originalUse = expressAny.application.use;
 let securityMiddlewareInstalled = false;
@@ -93,7 +108,6 @@ const securityMiddleware = (req: any, res: any, next: any) => {
       }
     }
 
-    // Prevent username enumeration without changing successful responses.
     if (req.path === '/api/auth/login') {
       const originalJson = res.json.bind(res);
       res.json = (body: any) => {
@@ -140,7 +154,6 @@ expressAny.json = (options: any = {}) => {
   });
 };
 
-// Harden Socket.IO before index.ts registers its connection handler.
 const socketServerAny = SocketIOServer as any;
 const originalServerOn = socketServerAny.prototype.on;
 socketServerAny.prototype.on = function patchedServerOn(this: any, event: string, listener: (...args: any[]) => void) {
@@ -172,7 +185,6 @@ socketServerAny.prototype.on = function patchedServerOn(this: any, event: string
 const socketPrototypeAny = Socket.prototype as any;
 const originalSocketOn = socketPrototypeAny.on;
 socketPrototypeAny.on = function patchedSocketOn(this: any, event: string, listener: (...args: any[]) => void) {
-  // The server must derive identity from the verified JWT, never from client input.
   if (event === 'set_user_session') {
     return this;
   }
@@ -195,7 +207,6 @@ socketPrototypeAny.on = function patchedSocketOn(this: any, event: string, liste
   return originalSocketOn.call(this, event, guardedListener);
 };
 
-// Patch admin authorization to be DB-backed and exclusive to Diegodev.
 GameWorld.prototype.verifyIsAdmin = function secureVerifyIsAdmin(adminUserId: string): boolean {
   const user = dbHelpers.getUserById(adminUserId);
   if (!user) return false;
@@ -203,7 +214,6 @@ GameWorld.prototype.verifyIsAdmin = function secureVerifyIsAdmin(adminUserId: st
   return user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && row?.role === 'admin';
 };
 
-// Prevent the existing admin panel from promoting anyone other than Diegodev.
 const originalUpdateUserRole = dbHelpers.updateUserRole;
 dbHelpers.updateUserRole = (userId: string, role: 'admin' | 'player'): boolean => {
   const user = dbHelpers.getUserById(userId);
@@ -214,7 +224,6 @@ dbHelpers.updateUserRole = (userId: string, role: 'admin' | 'player'): boolean =
   return originalUpdateUserRole(userId, safeRole);
 };
 
-// Enforce strong passwords on admin resets too.
 const originalUpdateUserPassword = dbHelpers.updateUserPassword;
 dbHelpers.updateUserPassword = (userId: string, newPlainPassword: string): boolean => {
   const user = dbHelpers.getUserById(userId);
@@ -226,7 +235,6 @@ dbHelpers.updateUserPassword = (userId: string, newPlainPassword: string): boole
   return originalUpdateUserPassword(userId, newPlainPassword);
 };
 
-// Normalize the database to exactly one administrator before index.ts starts.
 db.prepare("UPDATE users SET role = 'player'").run();
 const existingAdmin = dbHelpers.getUserByUsername(ADMIN_USERNAME);
 
@@ -240,7 +248,14 @@ if (existingAdmin) {
   db.prepare("UPDATE players SET data = json_set(data, '$.username', ?, '$.role', 'admin', '$.isBanned', false), updated_at = ? WHERE user_id = ?").run(ADMIN_USERNAME, Date.now(), userId);
 }
 
-// Disable the legacy demo administrator entirely.
+await import('./index.js');
+
+// index.ts seeds the old demo account during module initialization. Remove it after startup.
+db.prepare("DELETE FROM players WHERE user_id IN (SELECT id FROM users WHERE lower(username) = 'zero_cool')").run();
 db.prepare("DELETE FROM users WHERE lower(username) = 'zero_cool'").run();
 
-await import('./index.js');
+if (!capturedServer) {
+  throw new Error('Failed to capture the HackerWars HTTP server instance.');
+}
+
+export default capturedServer;
