@@ -43,7 +43,7 @@ const buildPlayer = (userId: string, username: string): Player => {
   const randomIp = `192.168.${Math.floor(Math.random() * 200 + 1)}.${Math.floor(Math.random() * 250 + 2)}`;
   return {
     ...JSON.parse(JSON.stringify(INITIAL_PLAYER)),
-    id: `player-${userId}`,
+    id: uuidv4(),
     username,
     ip: randomIp,
     bankAccounts: [{
@@ -104,7 +104,7 @@ export async function initializeSupabaseDb(): Promise<void> {
 
   const existingAdmin = Array.from(users.values()).find(u => u.username.toLowerCase() === adminUsername.toLowerCase());
   const hash = bcrypt.hashSync(adminPassword, 12);
-  const adminId = existingAdmin?.id ?? `user-${uuidv4().substring(0, 8)}`;
+  const adminId = existingAdmin?.id ?? uuidv4();
   const admin: UserRow = {
     id: adminId,
     username: adminUsername,
@@ -128,7 +128,7 @@ export async function initializeSupabaseDb(): Promise<void> {
     const player = buildPlayer(adminId, adminUsername);
     player.role = 'admin';
     players.set(adminId, player);
-    write(supabase.from('players').upsert({ id: player.id, user_id: adminId, data: player, updated_at: new Date().toISOString() }));
+    write(supabase.from('players').upsert({ id: player.id, user_id: adminId, data: player, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }));
   }
 
   const legacy = Array.from(users.values()).filter(u => u.username.toLowerCase() === 'zero_cool');
@@ -144,7 +144,7 @@ export const dbHelpers = {
   initDefaultData: () => undefined,
 
   createUser: (username: string, passwordHash: string): { userId: string; player: Player } => {
-    const userId = `user-${uuidv4().substring(0, 8)}`;
+    const userId = uuidv4();
     const now = new Date().toISOString();
     const row: UserRow = { id: userId, username, password_hash: passwordHash, created_at: now, role: 'player', is_banned: false, ban_reason: null };
     const player = buildPlayer(userId, username);
@@ -249,7 +249,7 @@ export const dbHelpers = {
   resetAllServers: () => {
     servers.clear();
     for (const server of INITIAL_SERVERS) servers.set(server.ip, server);
-    write(supabase.from('game_servers').delete().neq('id', '')); 
+    write(supabase.from('game_servers').delete().neq('id', ''));
     for (const server of INITIAL_SERVERS) write(supabase.from('game_servers').insert({ id: server.id, ip: server.ip, data: server, updated_at: new Date().toISOString() }));
   },
 };
