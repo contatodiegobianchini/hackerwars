@@ -39,9 +39,10 @@ jobs:
           if old in s and "const socketUrl = (import.meta.env.VITE_SOCKET_URL" not in s:
               s = s.replace(old, new, 1)
 
-          s = s.replace("fetch('/api/auth/me'", "fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\\/$/, '')}/api/auth/me'")
-          s = s.replace("fetch('/api/auth/login'", "fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\\/$/, '')}/api/auth/login'")
-          s = s.replace("fetch('/api/auth/register'", "fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\\/$/, '')}/api/auth/register'")
+          for endpoint in ('me', 'login', 'register'):
+              old_fetch = f"fetch('/api/auth/{endpoint}'"
+              new_fetch = f"fetch(`${{(import.meta.env.VITE_API_URL || '').replace(/\\/$/, '')}}/api/auth/{endpoint}`"
+              s = s.replace(old_fetch, new_fetch)
           p.write_text(s)
           PY
 
