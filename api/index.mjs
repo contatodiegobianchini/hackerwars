@@ -4,4 +4,13 @@ await initializeSupabaseDb();
 
 const { default: server } = await import('../server/src/secure-server.js');
 
-export default server;
+const requestListeners = server.listeners('request');
+const requestHandler = requestListeners[0];
+
+if (typeof requestHandler !== 'function') {
+  throw new Error('HackerWars HTTP server did not expose an Express request handler.');
+}
+
+export default function handler(req, res) {
+  return requestHandler(req, res);
+}
