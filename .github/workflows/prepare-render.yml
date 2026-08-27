@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 20
 
-      - name: Configure Render runtime and client endpoint
+      - name: Configure Render runtime and client endpoints
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -28,7 +28,7 @@ jobs:
           p = Path('server/src/secure-server.ts')
           s = p.read_text()
           marker = "export default capturedServer;"
-          if "server.listen(" not in s:
+          if "capturedServer.listen(" not in s:
               s = s.replace(marker, "const PORT = Number(process.env.PORT || 10000);\n\ncapturedServer.listen(PORT, '0.0.0.0', () => {\n  console.log(`HackerWars server listening on ${PORT}`);\n});\n\n" + marker)
               p.write_text(s)
 
@@ -38,7 +38,11 @@ jobs:
           new = "const socketUrl = (import.meta.env.VITE_SOCKET_URL || '').trim();\n    const socket = io(socketUrl || '/', {"
           if old in s and "const socketUrl = (import.meta.env.VITE_SOCKET_URL" not in s:
               s = s.replace(old, new, 1)
-              p.write_text(s)
+
+          s = s.replace("fetch('/api/auth/me'", "fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\\/$/, '')}/api/auth/me'")
+          s = s.replace("fetch('/api/auth/login'", "fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\\/$/, '')}/api/auth/login'")
+          s = s.replace("fetch('/api/auth/register'", "fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\\/$/, '')}/api/auth/register'")
+          p.write_text(s)
           PY
 
       - name: Commit deployment preparation
