@@ -11,17 +11,10 @@ const httpModule = require('node:http');
 
 let capturedServer: any = null;
 const originalCreateServer = httpModule.createServer;
-const originalServerListen = httpModule.Server.prototype.listen;
 
 httpModule.createServer = function hardenedCreateServer(...args: any[]) {
   capturedServer = originalCreateServer.apply(this, args);
   return capturedServer;
-};
-
-// Vercel owns the HTTP listener. Prevent the application from opening its own port.
-httpModule.Server.prototype.listen = function hardenedListen(...args: any[]) {
-  if (process.env.VERCEL) return this;
-  return originalServerListen.apply(this, args);
 };
 
 type AuthClaims = {
@@ -31,7 +24,7 @@ type AuthClaims = {
 };
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const configuredAdminPassword = process.env.ADMIN_PASSWORD;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_USERNAME = 'Diegodev';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN?.trim();
 
@@ -39,11 +32,9 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be configured and contain at least 32 characters.');
 }
 
-if (!configuredAdminPassword || configuredAdminPassword.length < 20) {
+if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 20) {
   throw new Error('ADMIN_PASSWORD must be configured and contain at least 20 characters.');
 }
-
-const ADMIN_PASSWORD: string = configuredAdminPassword;
 
 const verifyJwt = (token: unknown): AuthClaims | null => {
   if (typeof token !== 'string' || token.length < 20) return null;
@@ -77,11 +68,7 @@ const hardenedCors = (options: any = {}) => originalCors({
   ...options,
   origin: FRONTEND_ORIGIN || false,
 });
-const corsModule = require.cache[corsPath];
-if (!corsModule) {
-  throw new Error('Failed to resolve the cors module cache entry.');
-}
-corsModule.exports = hardenedCors;
+require.cache[corsPath].exports = hardenedCors;
 
 const expressAny = express as any;
 const originalUse = expressAny.application.use;
@@ -192,7 +179,11 @@ const socketPrototypeAny = Socket.prototype as any;
 const originalSocketOn = socketPrototypeAny.on;
 socketPrototypeAny.on = function patchedSocketOn(this: any, event: string, listener: (...args: any[]) => void) {
   if (event === 'set_user_session') {
-    return this;
+    return originalSocketOn.call(this, event, () => {
+      const userId = this.data?.user?.userId;
+      if (!userId) return;
+      return listener({ userId });
+    });
   }
 
   const guardedListener = (...args: any[]) => {
@@ -216,8 +207,7 @@ socketPrototypeAny.on = function patchedSocketOn(this: any, event: string, liste
 GameWorld.prototype.verifyIsAdmin = function secureVerifyIsAdmin(adminUserId: string): boolean {
   const user = dbHelpers.getUserById(adminUserId);
   if (!user) return false;
-  const row = db.prepare('SELECT role FROM users WHERE id = ?').get(adminUserId) as { role?: string } | undefined;
-  return user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && row?.role === 'admin';
+  return user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && user.role === 'admin';
 };
 
 const originalUpdateUserRole = dbHelpers.updateUserRole;
@@ -241,23 +231,7 @@ dbHelpers.updateUserPassword = (userId: string, newPlainPassword: string): boole
   return originalUpdateUserPassword(userId, newPlainPassword);
 };
 
-db.prepare("UPDATE users SET role = 'player'").run();
-const existingAdmin = dbHelpers.getUserByUsername(ADMIN_USERNAME);
-
-if (existingAdmin) {
-  const hash = bcrypt.hashSync(ADMIN_PASSWORD, 12);
-  db.prepare("UPDATE users SET password_hash = ?, role = 'admin', is_banned = 0, ban_reason = NULL WHERE id = ?").run(hash, existingAdmin.id);
-  db.prepare("UPDATE players SET data = json_set(data, '$.username', ?, '$.role', 'admin', '$.isBanned', false), updated_at = ? WHERE user_id = ?").run(ADMIN_USERNAME, Date.now(), existingAdmin.id);
-} else {
-  const { userId } = dbHelpers.createUser(ADMIN_USERNAME, bcrypt.hashSync(ADMIN_PASSWORD, 12));
-  db.prepare("UPDATE users SET role = 'admin', is_banned = 0, ban_reason = NULL WHERE id = ?").run(userId);
-  db.prepare("UPDATE players SET data = json_set(data, '$.username', ?, '$.role', 'admin', '$.isBanned', false), updated_at = ? WHERE user_id = ?").run(ADMIN_USERNAME, Date.now(), userId);
-}
-
 await import('./index.js');
-
-db.prepare("DELETE FROM players WHERE user_id IN (SELECT id FROM users WHERE lower(username) = 'zero_cool')").run();
-db.prepare("DELETE FROM users WHERE lower(username) = 'zero_cool'").run();
 
 if (!capturedServer) {
   throw new Error('Failed to capture the HackerWars HTTP server instance.');
