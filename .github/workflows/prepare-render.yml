@@ -1,0 +1,54 @@
+name: Prepare Render deployment
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Configure Render runtime and client endpoint
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('server/src/secure-server.ts')
+          s = p.read_text()
+          marker = "export default capturedServer;"
+          if "server.listen(" not in s:
+              s = s.replace(marker, "const PORT = Number(process.env.PORT || 10000);\n\ncapturedServer.listen(PORT, '0.0.0.0', () => {\n  console.log(`HackerWars server listening on ${PORT}`);\n});\n\n" + marker)
+              p.write_text(s)
+
+          p = Path('client/src/stores/useGameStore.ts')
+          s = p.read_text()
+          old = "const socket = io('/', {"
+          new = "const socketUrl = (import.meta.env.VITE_SOCKET_URL || '').trim();\n    const socket = io(socketUrl || '/', {"
+          if old in s and "const socketUrl = (import.meta.env.VITE_SOCKET_URL" not in s:
+              s = s.replace(old, new, 1)
+              p.write_text(s)
+          PY
+
+      - name: Commit deployment preparation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/src/secure-server.ts client/src/stores/useGameStore.ts
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git commit -m "fix: prepare realtime server for Render [skip ci]"
+          git push
