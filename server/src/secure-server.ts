@@ -68,7 +68,10 @@ const hardenedCors = (options: any = {}) => originalCors({
   ...options,
   origin: FRONTEND_ORIGIN || false,
 });
-require.cache[corsPath].exports = hardenedCors;
+const corsModule = require.cache[corsPath];
+if (corsModule) {
+  corsModule.exports = hardenedCors;
+}
 
 const expressAny = express as any;
 const originalUse = expressAny.application.use;
