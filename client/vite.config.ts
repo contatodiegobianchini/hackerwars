@@ -12,7 +12,10 @@ function configureProductionEndpoints(env: Record<string, string>): Plugin {
 
       const transformed = code
         .replaceAll("fetch('/api/", `fetch('${apiUrl}/api/`)
-        .replace("io('/', {", `io('${socketUrl}', {`);
+        .replace("io('/', {", `io('${socketUrl}', {`)
+        .replace("io(\"/\", {", `io('${socketUrl}', {`)
+        .replace("io(\"/\")", `io('${socketUrl}')`)
+        .replace("io('/')", `io('${socketUrl}')`);
 
       return transformed === code ? null : { code: transformed, map: null };
     },
