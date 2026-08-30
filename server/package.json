@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/secure-server.ts",
     "build": "tsc",
-    "start": "node dist/secure-server.js"
+    "start": "node --import ./dist/admin-socket-patch.js dist/secure-server.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
