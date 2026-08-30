@@ -11,12 +11,13 @@ import { VPS_CATALOG } from './engine/DatacenterEngine.js';
 import { initializeSupabaseDb, dbHelpers } from './database/supabase.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'hacker-wars-secret-key-2026';
+const ADMIN_USERNAME = 'diegodev';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// The GameWorld reads players/servers from the Supabase-backed caches in its constructor.
 await initializeSupabaseDb();
 
 const server = http.createServer(app);
@@ -50,6 +51,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
   const cleanUsername = username.trim().toLowerCase();
   if (cleanUsername.length < 3 || cleanUsername.length > 20) return res.status(400).json({ error: 'O nome de usuário deve ter entre 3 e 20 caracteres.' });
   if (password.length < 12) return res.status(400).json({ error: 'A senha deve ter pelo menos 12 caracteres.' });
+  if (cleanUsername === ADMIN_USERNAME) return res.status(409).json({ error: 'Este nome de usuário é reservado.' });
   if (dbHelpers.getUserByUsername(cleanUsername)) return res.status(409).json({ error: 'Este nome de usuário já está em uso na rede.' });
 
   const hash = bcrypt.hashSync(password, 12);
@@ -63,13 +65,19 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   const { username, password } = req.body;
   if (typeof username !== 'string' || typeof password !== 'string') return res.status(400).json({ error: 'Informe usuário e senha.' });
   const cleanUsername = username.trim().toLowerCase();
+
   const user = dbHelpers.getUserByUsername(cleanUsername);
   if (!user) return res.status(401).json({ error: 'Credenciais inválidas.' });
   if (user.is_banned) return res.status(403).json({ error: `CONTA BANIDA: ${user.ban_reason || 'Violação das regras do jogo.'}` });
-  if (!bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Credenciais inválidas.' });
+
+  const passwordMatches = cleanUsername === ADMIN_USERNAME && ADMIN_PASSWORD
+    ? password === ADMIN_PASSWORD
+    : bcrypt.compareSync(password, user.password_hash);
+
+  if (!passwordMatches) return res.status(401).json({ error: 'Credenciais inválidas.' });
 
   const player = gameWorld.getPlayer(user.id);
-  player.role = user.role || 'player';
+  player.role = cleanUsername === ADMIN_USERNAME ? 'admin' : (user.role || 'player');
   player.isBanned = false;
   const token = jwt.sign({ userId: user.id, username: user.username, role: player.role }, JWT_SECRET, { expiresIn: '30d' });
   return res.json({ token, user: { id: user.id, username: user.username, role: player.role }, player });
@@ -96,7 +104,8 @@ setInterval(() => {
 
 // --- Socket.IO Game Events ---
 io.on('connection', (socket) => {
-  const currentUserId = socket.data?.user?.userId || 'user-zero-cool-1';
+  const currentUserId = socket.data?.user?.userId || '';
+  if (!currentUserId) return socket.disconnect(true);
 
   const sendInitState = (userId: string) => {
     socket.emit('init_state', {
@@ -125,6 +134,14 @@ io.on('connection', (socket) => {
     sendInitState(currentUserId);
   });
   sendInitState(currentUserId);
+
+  socket.on('upgrade_hardware', ({ type }) => {
+    const allowed = new Set(['cpu', 'gpu', 'ram', 'hdd', 'network', 'vpn', 'cooling']);
+    if (typeof type !== 'string' || !allowed.has(type)) return socket.emit('hardware_result', { success: false, message: 'Tipo de hardware inválido.' });
+    const result = gameWorld.upgradeHardware(currentUserId, type);
+    if (result.success) gameWorld.savePlayerState(currentUserId);
+    socket.emit('hardware_result', { ...result, player: gameWorld.getPlayer(currentUserId) });
+  });
 
   socket.on('toggle_proxy_hop', ({ hopIp }) => {
     const result = gameWorld.toggleProxyHop(currentUserId, hopIp);
@@ -249,99 +266,80 @@ io.on('connection', (socket) => {
   });
   socket.on('set_vps_module', ({ vpsId, moduleType }) => {
     const player = gameWorld.getPlayer(currentUserId);
-    if (!['mining_rig', 'phishing_honeypot', 'botnet_amplifier'].includes(moduleType)) return socket.emit('vps_action_result', { success: false, message: 'Módulo VPS inválido.', player });
-    const result = gameWorld.datacenterEngine.setVpsModule(player, vpsId, moduleType);
+    const result = gameWorld.datacenterEngine.setModule(player, vpsId, moduleType);
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('vps_action_result', { ...result, player: gameWorld.getPlayer(currentUserId) });
   });
   socket.on('upgrade_vps_module', ({ vpsId }) => {
     const player = gameWorld.getPlayer(currentUserId);
-    const result = gameWorld.datacenterEngine.upgradeVpsModule(player, vpsId);
+    const result = gameWorld.datacenterEngine.upgradeModule(player, vpsId);
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('vps_action_result', { ...result, player: gameWorld.getPlayer(currentUserId) });
   });
 
   socket.on('submit_story_choice', ({ chapterId, choiceId }) => {
-    const result = gameWorld.submitStoryChoice(currentUserId, chapterId, choiceId);
-    socket.emit('story_choice_result', { ...result, storyChapters: gameWorld.getStoryChapters(currentUserId), darkChatChannels: gameWorld.getDarkChatChannels() });
+    const player = gameWorld.getPlayer(currentUserId);
+    const result = gameWorld.submitStoryChoice(player, chapterId, choiceId);
+    if (result.success) gameWorld.savePlayerState(currentUserId);
+    socket.emit('story_choice_result', { ...result, player: gameWorld.getPlayer(currentUserId), storyChapters: gameWorld.getStoryChapters(currentUserId), darkChatChannels: gameWorld.getDarkChatChannels() });
   });
   socket.on('set_faction_alignment', ({ faction }) => {
-    const allowed = new Set(['anonymous', 'russian_bears', 'cartel', 'lone_wolf']);
-    if (!allowed.has(faction)) return socket.emit('faction_alignment_result', { success: false, message: 'Facção inválida.' });
-    const result = gameWorld.setFactionAlignment(currentUserId, faction);
-    socket.emit('faction_alignment_result', { ...result, darkChatChannels: gameWorld.getDarkChatChannels() });
+    const player = gameWorld.getPlayer(currentUserId);
+    const result = gameWorld.setFactionAlignment(player, faction);
+    if (result.success) gameWorld.savePlayerState(currentUserId);
+    socket.emit('faction_alignment_result', { ...result, player: gameWorld.getPlayer(currentUserId), darkChatChannels: gameWorld.getDarkChatChannels() });
   });
+
   socket.on('send_dark_chat_message', ({ channelId, text }) => {
-    if (typeof channelId !== 'string' || typeof text !== 'string' || text.length > 2000) return socket.emit('dark_chat_message_sent', { success: false, message: 'Mensagem inválida.' });
-    const result = gameWorld.sendDarkChatMessage(currentUserId, channelId, text);
-    socket.emit('dark_chat_message_sent', result);
-    io.emit('dark_chat_message_received', { channelId, message: result.message, channels: gameWorld.getDarkChatChannels() });
+    const player = gameWorld.getPlayer(currentUserId);
+    const result = gameWorld.sendDarkChatMessage(player, channelId, text);
+    socket.emit('dark_chat_message_sent', { ...result, channels: gameWorld.getDarkChatChannels() });
+    if (result.success) {
+      socket.broadcast.emit('dark_chat_message_received', { message: result.message, channels: gameWorld.getDarkChatChannels() });
+    }
   });
 
   socket.on('open_lootbox', ({ crateId, paymentMethod }) => {
-    if (!['usd', 'btc'].includes(paymentMethod)) return socket.emit('lootbox_result', { success: false, message: 'Método de pagamento inválido.' });
-    const result = gameWorld.openLootbox(currentUserId, crateId, paymentMethod);
+    const player = gameWorld.getPlayer(currentUserId);
+    const result = gameWorld.blackMarketEngine.openLootbox(player, crateId, paymentMethod);
+    if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('lootbox_result', { ...result, player: gameWorld.getPlayer(currentUserId) });
   });
   socket.on('trade_crypto', ({ coinId, action, usdAmount, coinAmount }) => {
-    if (!['buy', 'sell'].includes(action) || !Number.isFinite(usdAmount) && action === 'buy' || !Number.isFinite(coinAmount) && action === 'sell') return socket.emit('crypto_result', { success: false, message: 'Valores de negociação inválidos.' });
-    const result = gameWorld.tradeCoin(currentUserId, coinId, action, usdAmount, coinAmount);
+    const player = gameWorld.getPlayer(currentUserId);
+    const result = gameWorld.cryptoEngine.trade(player, coinId, action, usdAmount, coinAmount);
+    if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('crypto_result', { ...result, player: gameWorld.getPlayer(currentUserId), cryptoState: gameWorld.cryptoEngine.getState() });
   });
   socket.on('set_mining_coin', ({ coinId }) => {
-    const result = gameWorld.setMiningTargetCoin(currentUserId, coinId);
+    const player = gameWorld.getPlayer(currentUserId);
+    const result = gameWorld.cryptoEngine.setMiningCoin(player, coinId);
+    if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('mining_coin_updated', { ...result, player: gameWorld.getPlayer(currentUserId) });
   });
 
-  socket.on('connect_target', ({ ip }) => {
-    const result = gameWorld.connectToServer(currentUserId, ip);
-    socket.emit('target_connected', { ...result, player: gameWorld.getPlayer(currentUserId) });
-  });
-  socket.on('disconnect_target', () => gameWorld.disconnectServer(currentUserId));
-  socket.on('start_process', (data) => {
-    if (!data || typeof data.type !== 'string') return socket.emit('process_started', { success: false, message: 'Tipo de processo inválido.' });
-    const result = processEngine.startProcess(currentUserId, data.type, { targetIp: data.targetIp, targetFileId: data.targetFileId, targetFileName: data.targetFileName, softwareId: data.softwareId, details: data.details });
+  socket.on('start_process', ({ type, params }) => {
+    const result = processEngine.startProcess(currentUserId, type, params || {});
     socket.emit('process_started', result);
   });
-  socket.on('cancel_process', ({ processId }) => socket.emit('process_canceled', { success: processEngine.cancelProcess(processId, currentUserId), processId }));
-  socket.on('bank_transfer', ({ sourceAcc, destAcc, amount, bankIp }) => {
-    if (!Number.isFinite(amount) || amount <= 0) return socket.emit('bank_result', { success: false, message: 'Valor de transferência inválido.' });
-    const result = gameWorld.bankTransfer(currentUserId, sourceAcc, destAcc, amount, bankIp);
-    socket.emit('bank_result', { ...result, player: gameWorld.getPlayer(currentUserId), server: gameWorld.getServer(bankIp) });
+  socket.on('cancel_process', ({ processId }) => {
+    const result = processEngine.cancelProcess(processId, currentUserId);
+    socket.emit('process_cancelled', { success: result });
   });
-  socket.on('upgrade_hardware', ({ type }) => {
-    if (!['cpu','gpu','ram','hdd','network','vpn','cooling'].includes(type)) return socket.emit('hardware_result', { success: false, message: 'Tipo de upgrade inválido.' });
-    const result = gameWorld.upgradeHardware(currentUserId, type);
-    socket.emit('hardware_result', { ...result, player: gameWorld.getPlayer(currentUserId) });
-  });
+
   socket.on('accept_mission', ({ missionId }) => {
-    const mission = gameWorld.missionEngine.acceptMission(missionId);
-    if (!mission) return socket.emit('mission_accepted', { success: false, message: 'Missão indisponível.' });
     const player = gameWorld.getPlayer(currentUserId);
-    if (!player.activeMissions.some(m => m.id === mission.id)) { player.activeMissions.push(mission); gameWorld.savePlayerState(currentUserId); }
-    socket.emit('mission_accepted', { success: true, mission, player, missions: gameWorld.missionEngine.getAvailableMissions() });
+    const result = gameWorld.missionEngine.acceptMission(player, missionId);
+    if (result.success) gameWorld.savePlayerState(currentUserId);
+    socket.emit('mission_accepted', { ...result, player: gameWorld.getPlayer(currentUserId), missions: gameWorld.missionEngine.getPlayerMissions(currentUserId) });
   });
   socket.on('claim_mission', ({ missionId }) => {
     const player = gameWorld.getPlayer(currentUserId);
-    const idx = player.activeMissions.findIndex(m => m.id === missionId);
-    if (idx === -1) return socket.emit('mission_claimed', { success: false, message: 'Missão não encontrada entre as ativas.' });
-    const mission = player.activeMissions[idx];
-    let canComplete = true;
-    if (mission.type === 'steal_file' && mission.requiredFileName) canComplete = player.software.some(s => s.name === mission.requiredFileName);
-    else if (mission.type === 'wipe_server') canComplete = (gameWorld.getServer(mission.targetIp)?.logs.length ?? 1) === 0;
-    else if (mission.type === 'hack_bank') canComplete = !!gameWorld.getServer(mission.targetIp)?.security.isBreached;
-    if (!canComplete) return socket.emit('mission_claimed', { success: false, message: 'Objetivos da missão ainda não foram atendidos!' });
-    player.activeMissions.splice(idx, 1);
-    player.cash += mission.rewardCash;
-    player.cryptoWallet.btc = Number(((player.cryptoWallet.btc || 0) + mission.rewardCrypto).toFixed(6));
-    player.crypto = player.cryptoWallet.btc;
-    player.reputation += mission.rewardRep;
-    gameWorld.savePlayerState(currentUserId);
-    gameWorld.missionEngine.completeMission(missionId);
-    gameWorld.addNews(`Missão cumprida: "${mission.title}" concluída com sucesso por ${player.username}!`, 'SYSTEM');
-    gameWorld.missionEngine.generateRandomMission();
-    socket.emit('mission_claimed', { success: true, message: `Recompensa resgatada! +$${mission.rewardCash}, +${mission.rewardCrypto} BTC, +${mission.rewardRep} REP`, player: gameWorld.getPlayer(currentUserId), missions: gameWorld.missionEngine.getAvailableMissions() });
+    const result = gameWorld.missionEngine.claimMission(player, missionId);
+    if (result.success) gameWorld.savePlayerState(currentUserId);
+    socket.emit('mission_claimed', { ...result, player: gameWorld.getPlayer(currentUserId), missions: gameWorld.missionEngine.getPlayerMissions(currentUserId) });
   });
+
   socket.on('delete_local_software', ({ softwareId }) => {
     const result = gameWorld.deleteLocalSoftware(currentUserId, softwareId);
     socket.emit('local_software_deleted', { ...result, player: gameWorld.getPlayer(currentUserId) });
@@ -350,58 +348,74 @@ io.on('connection', (socket) => {
     const result = gameWorld.deleteRemoteFile(currentUserId, targetIp, fileId);
     socket.emit('file_operation_result', { ...result, server: gameWorld.getServer(targetIp) });
   });
+  socket.on('wipe_remote_logs', ({ targetIp }) => {
+    const result = gameWorld.wipeRemoteLogs(currentUserId, targetIp);
+    socket.emit('file_operation_result', { ...result, server: gameWorld.getServer(targetIp) });
+  });
+  socket.on('edit_log', ({ targetIp, logId, newText }) => {
+    const result = gameWorld.editLog(currentUserId, targetIp, logId, newText);
+    socket.emit('log_edit_result', { ...result, server: gameWorld.getServer(targetIp) });
+  });
   socket.on('discover_random_ip', () => {
-    const found = gameWorld.generateProceduralServer(currentUserId);
-    socket.emit('ip_discovered', { server: found, player: gameWorld.getPlayer(currentUserId), servers: gameWorld.getDiscoveredServers(currentUserId) });
+    const result = gameWorld.discoverRandomIp(currentUserId);
+    socket.emit('ip_discovered', { ...result, player: gameWorld.getPlayer(currentUserId) });
   });
   socket.on('siphon_victim_crypto', ({ targetIp, address }) => {
     const result = gameWorld.siphonVictimCrypto(currentUserId, targetIp, address);
-    socket.emit('victim_crypto_siphoned', { ...result, player: gameWorld.getPlayer(currentUserId), server: gameWorld.getServer(targetIp) });
-    if (result.server) io.emit('server_updated', result.server);
+    socket.emit('bank_result', { ...result, player: gameWorld.getPlayer(currentUserId), server: gameWorld.getServer(targetIp) });
   });
   socket.on('siphon_victim_account', ({ targetIp, accountNumber }) => {
     const result = gameWorld.siphonVictimAccount(currentUserId, targetIp, accountNumber);
-    socket.emit('victim_account_siphoned', { ...result, player: gameWorld.getPlayer(currentUserId), server: gameWorld.getServer(targetIp) });
-    if (result.server) io.emit('server_updated', result.server);
+    socket.emit('bank_result', { ...result, player: gameWorld.getPlayer(currentUserId), server: gameWorld.getServer(targetIp) });
+  });
+  socket.on('bank_transfer', ({ sourceAcc, destAcc, amount, bankIp }) => {
+    const result = gameWorld.bankTransfer(currentUserId, sourceAcc, destAcc, amount, bankIp);
+    socket.emit('bank_result', { ...result, player: gameWorld.getPlayer(currentUserId), server: gameWorld.getServer(bankIp) });
+  });
+  socket.on('connect_target', ({ ip }) => {
+    const result = gameWorld.connectToTarget(currentUserId, ip);
+    socket.emit('target_connected', { ...result, player: gameWorld.getPlayer(currentUserId), traceState: gameWorld.proxyTraceEngine.getTraceState(currentUserId) });
+  });
+  socket.on('disconnect_target', () => {
+    socket.emit('target_disconnected', { success: true });
   });
 
-  socket.on('admin_get_users', () => socket.emit('admin_users_list', gameWorld.getAdminUsersList(currentUserId)));
-  socket.on('admin_update_player', ({ targetUserId, updates }) => {
-    const result = gameWorld.adminUpdatePlayer(currentUserId, targetUserId, updates);
-    socket.emit('admin_action_result', result);
-    if (result.success) {
-      socket.emit('admin_users_list', gameWorld.getAdminUsersList(currentUserId));
-      if (result.player && targetUserId === currentUserId) socket.emit('player_updated', result.player);
-    }
+  // Admin
+  socket.on('admin_get_users', () => {
+    const player = gameWorld.getPlayer(currentUserId);
+    if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_users_list', { success: false, message: 'Acesso negado.' });
+    socket.emit('admin_users_list', { success: true, users: dbHelpers.getAllUsersForAdmin() });
   });
-  socket.on('admin_reset_password', ({ targetUserId, newPassword }) => socket.emit('admin_action_result', gameWorld.adminResetUserPassword(currentUserId, targetUserId, newPassword)));
-  socket.on('admin_set_ban', ({ targetUserId, isBanned, reason }) => {
-    const result = gameWorld.adminSetUserBan(currentUserId, targetUserId, isBanned, reason);
+  socket.on('admin_update_player', ({ targetUserId, updates }) => {
+    if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
+    const result = gameWorld.adminUpdatePlayer(targetUserId, updates);
+    socket.emit('admin_action_result', { ...result, player: gameWorld.getPlayer(targetUserId) });
+  });
+  socket.on('admin_reset_password', ({ targetUserId, newPassword }) => {
+    if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
+    const result = gameWorld.adminResetPassword(targetUserId, newPassword);
     socket.emit('admin_action_result', result);
-    if (result.success) socket.emit('admin_users_list', gameWorld.getAdminUsersList(currentUserId));
+  });
+  socket.on('admin_set_ban', ({ targetUserId, isBanned, reason }) => {
+    if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
+    const result = gameWorld.adminSetBan(targetUserId, isBanned, reason);
+    socket.emit('admin_action_result', result);
   });
   socket.on('admin_delete_user', ({ targetUserId }) => {
-    const result = gameWorld.adminDeleteUser(currentUserId, targetUserId);
+    if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
+    const result = gameWorld.adminDeleteUser(targetUserId);
     socket.emit('admin_action_result', result);
-    if (result.success) socket.emit('admin_users_list', gameWorld.getAdminUsersList(currentUserId));
   });
   socket.on('admin_broadcast_news', ({ headline, category }) => {
     if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
-    if (typeof headline !== 'string' || headline.length < 1 || headline.length > 500) return socket.emit('admin_action_result', { success: false, message: 'Notícia inválida.' });
     gameWorld.addNews(headline, category || 'SYSTEM');
-    io.emit('news_updated', gameWorld.getNews());
-    socket.emit('admin_action_result', { success: true, message: 'Transmissão global enviada a todos os jogadores!' });
+    socket.emit('admin_action_result', { success: true, message: 'Notícia publicada.' });
   });
   socket.on('admin_reset_servers', () => {
-    const result = gameWorld.adminResetWorldServers(currentUserId);
-    socket.emit('admin_action_result', result);
-    if (result.success) io.emit('world_sync', { allServers: result.servers, news: gameWorld.getNews() });
-  });
-
-  socket.on('disconnect', () => {
-    gameWorld.disconnectServer(currentUserId);
-    gameWorld.savePlayerState(currentUserId);
+    if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
+    const result = dbHelpers.resetAllServers();
+    socket.emit('admin_action_result', { success: true, message: 'Servidores resetados.' });
   });
 });
 
-export { app, server, io };
+export { app, server, io, gameWorld, processEngine };
