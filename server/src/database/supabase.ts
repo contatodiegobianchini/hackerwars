@@ -32,8 +32,8 @@ const players = new Map<string, Player>();
 const servers = new Map<string, VirtualServer>();
 const news = new Map<string, GlobalNewsItem>();
 
-const write = (promise: PromiseLike<unknown>) => {
-  if (!supabase) return;
+const write = (promise: PromiseLike<unknown> | undefined) => {
+  if (!promise) return;
   void Promise.resolve(promise).catch((error) => console.error('[Supabase write]', error));
 };
 
