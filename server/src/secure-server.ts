@@ -28,7 +28,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_USERNAME = 'Diegodev';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN?.trim();
 const ALLOWED_ORIGINS = new Set(
-  [FRONTEND_ORIGIN, 'https://hackerwars.vercel.app']
+  [FRONTEND_ORIGIN, 'https://hackerwars.vercel.app', 'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
     .filter((origin): origin is string => Boolean(origin))
 );
 

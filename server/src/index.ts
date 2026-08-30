@@ -129,8 +129,11 @@ io.on('connection', (socket) => {
     });
   };
 
+  socket.join(currentUserId);
+
   socket.on('set_user_session', ({ userId }: { userId: string }) => {
     if (userId !== currentUserId) return;
+    socket.join(currentUserId);
     sendInitState(currentUserId);
   });
   sendInitState(currentUserId);
@@ -318,7 +321,12 @@ io.on('connection', (socket) => {
     socket.emit('mining_coin_updated', { ...result, player: gameWorld.getPlayer(currentUserId) });
   });
 
-  socket.on('start_process', ({ type, params }) => {
+  socket.on('start_process', (payload: any) => {
+    if (!payload || typeof payload !== 'object') return socket.emit('process_started', { success: false, message: 'Dados do processo inválidos.' });
+    const type = payload.type;
+    const params = payload.params && typeof payload.params === 'object'
+      ? payload.params
+      : (({ type: _t, ...rest }) => rest)(payload);
     const result = processEngine.startProcess(currentUserId, type, params || {});
     socket.emit('process_started', result);
   });

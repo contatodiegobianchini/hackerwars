@@ -367,7 +367,7 @@ export class ProcessEngine {
     }
 
     if (this.io) {
-      this.io.emit('process_completed', {
+      this.io.to(userId).emit('process_completed', {
         process: proc,
         message: resultMessage,
         player,
@@ -379,7 +379,7 @@ export class ProcessEngine {
   private broadcastProcesses(playerId: string) {
     if (this.io) {
       const active = this.getActiveProcesses(playerId);
-      this.io.emit('processes_updated', active);
+      this.io.to(playerId).emit('processes_updated', active);
     }
   }
 }

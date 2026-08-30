@@ -2,7 +2,10 @@ import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 function configureProductionEndpoints(env: Record<string, string>): Plugin {
-  const apiUrl = (env.VITE_API_URL || 'https://hackerwars-api.onrender.com').replace(/\/$/, '');
+  if (!env.VITE_API_URL && !env.VITE_SOCKET_URL) {
+    return { name: 'configure-production-endpoints' };
+  }
+  const apiUrl = (env.VITE_API_URL || '').replace(/\/$/, '');
   const socketUrl = (env.VITE_SOCKET_URL || apiUrl).replace(/\/$/, '');
 
   return {
@@ -22,20 +25,20 @@ function configureProductionEndpoints(env: Record<string, string>): Plugin {
   };
 }
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
 
   return {
-    plugins: [react(), configureProductionEndpoints(env)],
+    plugins: [react(), ...(command === 'build' ? [configureProductionEndpoints(env)] : [])],
     server: {
       port: 5173,
       proxy: {
         '/api': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:10000',
           changeOrigin: true,
         },
         '/socket.io': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:10000',
           ws: true,
         },
       },
