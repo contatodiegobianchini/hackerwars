@@ -7,7 +7,8 @@
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "install:all": "npm install && npm --prefix server install && npm --prefix client install",
-    "build": "npm --prefix client ci && npm --prefix client run build && npm --prefix server install && npm --prefix server run build",
+    "prepare:client": "node -e \"const fs=require('fs');const p='client/src/stores/useGameStore.ts';let s=fs.readFileSync(p,'utf8');if(!s.includes('const HACKERWARS_BACKEND_URL'))s=s.replace(\\\"import confetti from 'canvas-confetti';\\n\\\",\\\"import confetti from 'canvas-confetti';\\n\\nconst HACKERWARS_BACKEND_URL = (import.meta.env.VITE_API_URL || 'https://hackerwars-api.onrender.com').replace(/\\\\\\\/$/, '');\\nconst HACKERWARS_SOCKET_URL = (import.meta.env.VITE_SOCKET_URL || HACKERWARS_BACKEND_URL).replace(/\\\\\\\/$/, '');\\n\\\");s=s.replaceAll(\\\"fetch('/api/\\\",\\\"fetch(`${HACKERWARS_BACKEND_URL}/api/\\\");s=s.replace(\\\"const socket = io('/', {\\\",\\\"const socket = io(HACKERWARS_SOCKET_URL, {\\\");s=s.replace(/\\n\\s*socket\\.emit\\('set_user_session', \\{ userId: (?:user\\.id|data\\.user\\.id) \\}\\);/g,'');s=s.replace(/\\n\\s*if \\(u\\?\\.id\\) \\{\\n\\s*socket\\.emit\\('set_user_session', \\{ userId: u\\.id \\}\\);\\n\\s*\\}/g,'');s=s.replace(/\\n\\s*if \\(user\\?\\.id && existing\\.connected\\) \\{\\n\\s*existing\\.emit\\('set_user_session', \\{ userId: user\\.id \\}\\);\\n\\s*\\}/g,'');fs.writeFileSync(p,s);\"",
+    "build": "npm run prepare:client && npm --prefix client ci && npm --prefix client run build && npm --prefix server install && npm --prefix server run build",
     "build:server": "npm --prefix server install && npm --prefix server run build",
     "start": "npm --prefix server run start"
   },
