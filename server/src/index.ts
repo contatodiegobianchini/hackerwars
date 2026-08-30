@@ -191,6 +191,28 @@ io.on('connection', (socket) => {
     sendInitState(currentUserId);
   });
 
+  socket.on('upgrade_hardware', (payload: { type?: string }) => {
+    const allowed = new Set(['cpu', 'gpu', 'ram', 'hdd', 'network', 'vpn', 'cooling']);
+    if (!payload || typeof payload.type !== 'string' || !allowed.has(payload.type)) {
+      socket.emit('hardware_result', { success: false, message: 'Tipo de upgrade inválido.' });
+      return;
+    }
+
+    const result = gameWorld.upgradeHardware(
+      currentUserId,
+      payload.type as 'cpu' | 'gpu' | 'ram' | 'hdd' | 'network' | 'vpn' | 'cooling'
+    );
+
+    socket.emit('hardware_result', {
+      ...result,
+      player: gameWorld.getPlayer(currentUserId),
+    });
+
+    if (result.success) {
+      sendInitState(currentUserId);
+    }
+  });
+
   sendInitState(currentUserId);
 
   // ... existing Socket.IO game event handlers remain unchanged ...
