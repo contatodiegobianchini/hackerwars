@@ -24,25 +24,31 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           p = Path('server/src/secure-server.ts')
           s = p.read_text()
           marker = "export default capturedServer;"
-          if "capturedServer.listen(" not in s:
-              s = s.replace(marker, "const PORT = Number(process.env.PORT || 10000);\n\ncapturedServer.listen(PORT, '0.0.0.0', () => {\n  console.log(`HackerWars server listening on ${PORT}`);\n});\n\n" + marker)
+          listen = "const PORT = Number(process.env.PORT || 10000);\n\ncapturedServer.listen(PORT, '0.0.0.0', () => {\n  console.log(`HackerWars server listening on ${PORT}`);\n});\n\n"
+          if "capturedServer.listen(PORT" not in s:
+              s = s.replace(marker, listen + marker)
               p.write_text(s)
 
           p = Path('client/src/stores/useGameStore.ts')
           s = p.read_text()
-          old = "const socket = io('/', {"
-          new = "const socketUrl = (import.meta.env.VITE_SOCKET_URL || '').trim();\n    const socket = io(socketUrl || '/', {"
-          if old in s and "const socketUrl = (import.meta.env.VITE_SOCKET_URL" not in s:
-              s = s.replace(old, new, 1)
 
-          for endpoint in ('me', 'login', 'register'):
-              old_fetch = f"fetch('/api/auth/{endpoint}'"
-              new_fetch = f"fetch(`${{(import.meta.env.VITE_API_URL || '').replace(/\\/$/, '')}}/api/auth/{endpoint}`"
-              s = s.replace(old_fetch, new_fetch)
+          if 'const HACKERWARS_BACKEND_URL' not in s:
+              anchor = "import confetti from 'canvas-confetti';\n"
+              insertion = anchor + "\nconst HACKERWARS_BACKEND_URL = (import.meta.env.VITE_API_URL || 'https://hackerwars-api.onrender.com').replace(/\\/$/, '');\nconst HACKERWARS_SOCKET_URL = (import.meta.env.VITE_SOCKET_URL || HACKERWARS_BACKEND_URL).replace(/\\/$/, '');\n"
+              s = s.replace(anchor, insertion, 1)
+
+          s = s.replace("fetch('/api/", "fetch(`${HACKERWARS_BACKEND_URL}/api/")
+          s = s.replace("const socket = io('/', {", "const socket = io(HACKERWARS_SOCKET_URL, {")
+
+          s = re.sub(r"\n\s*socket\.emit\('set_user_session', \{ userId: (?:user\.id|data\.user\.id) \}\);", "", s)
+          s = re.sub(r"\n\s*if \(u\?\.id\) \{\n\s*socket\.emit\('set_user_session', \{ userId: u\.id \}\);\n\s*\}", "", s)
+          s = re.sub(r"\n\s*if \(user\?\.id && existing\.connected\) \{\n\s*existing\.emit\('set_user_session', \{ userId: user\.id \}\);\n\s*\}", "", s)
+
           p.write_text(s)
           PY
 
@@ -55,5 +61,5 @@ jobs:
             echo "No changes needed"
             exit 0
           fi
-          git commit -m "fix: prepare realtime server for Render [skip ci]"
+          git commit -m "fix: route frontend to Render backend [skip ci]"
           git push
