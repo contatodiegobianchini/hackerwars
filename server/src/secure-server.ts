@@ -42,18 +42,11 @@ if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 20) {
 
 const verifyJwt = (token: unknown): AuthClaims | null => {
   if (typeof token !== 'string' || token.length < 20) return null;
-
   try {
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as AuthClaims;
-    if (!decoded || typeof decoded.userId !== 'string' || typeof decoded.username !== 'string') {
-      return null;
-    }
-
+    if (!decoded || typeof decoded.userId !== 'string' || typeof decoded.username !== 'string') return null;
     const user = dbHelpers.getUserById(decoded.userId);
-    if (!user || user.username.toLowerCase() !== decoded.username.toLowerCase()) {
-      return null;
-    }
-
+    if (!user || user.username.toLowerCase() !== decoded.username.toLowerCase()) return null;
     return decoded;
   } catch {
     return null;
@@ -74,14 +67,11 @@ const hardenedCors = (options: any = {}) => originalCors({
   },
 });
 const corsModule = require.cache[corsPath];
-if (corsModule) {
-  corsModule.exports = hardenedCors;
-}
+if (corsModule) corsModule.exports = hardenedCors;
 
 const expressAny = express as any;
 const originalUse = expressAny.application.use;
 let securityMiddlewareInstalled = false;
-
 const rateState = new Map<string, { windowStart: number; count: number }>();
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 12;
@@ -93,12 +83,10 @@ const securityMiddleware = (req: any, res: any, next: any) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
   const isAuthEndpoint = req.path === '/api/auth/login' || req.path === '/api/auth/register';
-
   if (isAuthEndpoint) {
     const now = Date.now();
     const key = `${req.ip}:${req.path}`;
     const current = rateState.get(key);
-
     if (!current || now - current.windowStart >= RATE_WINDOW_MS) {
       rateState.set(key, { windowStart: now, count: 1 });
     } else {
@@ -108,15 +96,11 @@ const securityMiddleware = (req: any, res: any, next: any) => {
         return res.status(429).json({ error: 'Muitas tentativas. Aguarde um minuto e tente novamente.' });
       }
     }
-
     if (req.path === '/api/auth/login') {
       const originalJson = res.json.bind(res);
-      res.json = (body: any) => {
-        if (res.statusCode === 401) {
-          return originalJson({ error: 'Credenciais inválidas.' });
-        }
-        return originalJson(body);
-      };
+      res.json = (body: any) => res.statusCode === 401
+        ? originalJson({ error: 'Credenciais inválidas.' })
+        : originalJson(body);
     }
   }
 
@@ -131,7 +115,6 @@ const securityMiddleware = (req: any, res: any, next: any) => {
     }
     return res.sendStatus(originAllowed(origin) ? 204 : 403);
   }
-
   next();
 };
 
@@ -140,29 +123,19 @@ expressAny.application.use = function patchedUse(this: any, ...args: any[]) {
     securityMiddlewareInstalled = true;
     originalUse.call(this, securityMiddleware);
   }
-
   return originalUse.apply(this, args);
 };
 
 const originalJson = expressAny.json;
 expressAny.json = (options: any = {}) => {
   const parser = originalJson({ limit: '100kb', ...options });
-
   return (req: any, res: any, next: any) => parser(req, res, (error: any) => {
     if (error) return next(error);
-
     if ((req.path === '/api/auth/login' || req.path === '/api/auth/register') && req.body) {
       const { username, password } = req.body;
-
-      if (typeof username !== 'string' || typeof password !== 'string') {
-        return res.status(400).json({ error: 'Dados de autenticação inválidos.' });
-      }
-
-      if (req.path === '/api/auth/register' && password.length < 12) {
-        return res.status(400).json({ error: 'A senha deve ter pelo menos 12 caracteres.' });
-      }
+      if (typeof username !== 'string' || typeof password !== 'string') return res.status(400).json({ error: 'Dados de autenticação inválidos.' });
+      if (req.path === '/api/auth/register' && password.length < 12) return res.status(400).json({ error: 'A senha deve ter pelo menos 12 caracteres.' });
     }
-
     next();
   });
 };
@@ -170,28 +143,18 @@ expressAny.json = (options: any = {}) => {
 const socketServerAny = SocketIOServer as any;
 const originalServerOn = socketServerAny.prototype.on;
 socketServerAny.prototype.on = function patchedServerOn(this: any, event: string, listener: (...args: any[]) => void) {
-  if (event !== 'connection') {
-    return originalServerOn.call(this, event, listener);
-  }
-
+  if (event !== 'connection') return originalServerOn.call(this, event, listener);
   const securedListener = (socket: Socket, ...args: any[]) => {
     const origin = socket.handshake.headers.origin;
-    if (!originAllowed(origin)) {
-      socket.disconnect(true);
-      return;
-    }
-
+    if (!originAllowed(origin)) return socket.disconnect(true);
     const claims = verifyJwt(socket.handshake.auth?.token);
     if (!claims) {
       socket.emit('auth_error', { message: 'Autenticação do socket inválida.' });
-      socket.disconnect(true);
-      return;
+      return socket.disconnect(true);
     }
-
     socket.data.user = claims;
     return listener(socket, ...args);
   };
-
   return originalServerOn.call(this, event, securedListener);
 };
 
@@ -205,7 +168,6 @@ socketPrototypeAny.on = function patchedSocketOn(this: any, event: string, liste
       return listener({ userId });
     });
   }
-
   const guardedListener = (...args: any[]) => {
     try {
       const payloadSize = JSON.stringify(args)?.length ?? 0;
@@ -217,10 +179,8 @@ socketPrototypeAny.on = function patchedSocketOn(this: any, event: string, liste
       this.emit('error', new Error('Payload do socket inválido.'));
       return;
     }
-
     return listener(...args);
   };
-
   return originalSocketOn.call(this, event, guardedListener);
 };
 
@@ -230,13 +190,37 @@ GameWorld.prototype.verifyIsAdmin = function secureVerifyIsAdmin(adminUserId: st
   return user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && user.role === 'admin';
 };
 
+// Compatibility bridge for handlers left with the pre-Supabase method signatures.
+const gameWorldPrototype = GameWorld.prototype as any;
+if (!gameWorldPrototype.connectToTarget && gameWorldPrototype.connectToServer) {
+  gameWorldPrototype.connectToTarget = function (userId: string, ip: string) {
+    return this.connectToServer(userId, ip);
+  };
+}
+
+if (gameWorldPrototype.adminUpdatePlayer) {
+  const originalAdminUpdatePlayer = gameWorldPrototype.adminUpdatePlayer;
+  gameWorldPrototype.adminUpdatePlayer = function (adminUserId: string, targetUserId: string, updates?: any) {
+    // The current socket handler historically called (targetUserId, updates).
+    // Resolve the sole admin explicitly rather than trusting a client-supplied admin id.
+    if (updates === undefined && targetUserId && typeof targetUserId === 'object') {
+      const target = adminUserId;
+      const patch = targetUserId;
+      const admin = dbHelpers.getUserByUsername(ADMIN_USERNAME.toLowerCase());
+      if (!admin || !this.verifyIsAdmin(admin.id)) {
+        return { success: false, message: 'Acesso negado.' };
+      }
+      return originalAdminUpdatePlayer.call(this, admin.id, target, patch);
+    }
+    return originalAdminUpdatePlayer.call(this, adminUserId, targetUserId, updates);
+  };
+}
+
 const originalUpdateUserRole = dbHelpers.updateUserRole;
 dbHelpers.updateUserRole = (userId: string, role: 'admin' | 'player'): boolean => {
   const user = dbHelpers.getUserById(userId);
   if (!user) return false;
-  const safeRole = role === 'admin' && user.username.toLowerCase() !== ADMIN_USERNAME.toLowerCase()
-    ? 'player'
-    : role;
+  const safeRole = role === 'admin' && user.username.toLowerCase() !== ADMIN_USERNAME.toLowerCase() ? 'player' : role;
   return originalUpdateUserRole(userId, safeRole);
 };
 
@@ -245,17 +229,13 @@ dbHelpers.updateUserPassword = (userId: string, newPlainPassword: string): boole
   const user = dbHelpers.getUserById(userId);
   if (!user) return false;
   const minimumLength = user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() ? 20 : 12;
-  if (typeof newPlainPassword !== 'string' || newPlainPassword.length < minimumLength) {
-    return false;
-  }
+  if (typeof newPlainPassword !== 'string' || newPlainPassword.length < minimumLength) return false;
   return originalUpdateUserPassword(userId, newPlainPassword);
 };
 
 await import('./index.js');
 
-if (!capturedServer) {
-  throw new Error('Failed to capture the HackerWars HTTP server instance.');
-}
+if (!capturedServer) throw new Error('Failed to capture the HackerWars HTTP server instance.');
 
 const PORT = Number(process.env.PORT || 10000);
 capturedServer.listen(PORT, '0.0.0.0', () => {
