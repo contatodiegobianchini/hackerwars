@@ -28,9 +28,6 @@ import { sounds } from '../utils/audio.js';
 import { soundtrack } from '../utils/soundtrack.js';
 import confetti from 'canvas-confetti';
 
-const HACKERWARS_BACKEND_URL = (import.meta.env.VITE_API_URL || 'https://hackerwars-api.onrender.com').replace(/\/$/, '');
-const HACKERWARS_SOCKET_URL = (import.meta.env.VITE_SOCKET_URL || HACKERWARS_BACKEND_URL).replace(/\/$/, '');
-
 export type GameView =
   | 'my_server'
   | 'target_server'
@@ -326,7 +323,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
 
     try {
-      const res = await fetch(`${HACKERWARS_BACKEND_URL}/api/auth/me', {
+      const res = await fetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -344,6 +341,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         get().initSocket();
         const { socket } = get();
         if (socket) {
+          socket.emit('set_user_session', { userId: user.id });
         }
       } else {
         localStorage.removeItem('hacker_token');
@@ -356,7 +354,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   login: async (username, password) => {
     try {
-      const res = await fetch(`${HACKERWARS_BACKEND_URL}/api/auth/login', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -376,6 +374,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       const { socket } = get();
       if (socket) {
+        socket.emit('set_user_session', { userId: data.user.id });
       } else {
         get().initSocket();
       }
@@ -390,7 +389,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   register: async (username, password) => {
     try {
-      const res = await fetch(`${HACKERWARS_BACKEND_URL}/api/auth/register', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -410,6 +409,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       const { socket } = get();
       if (socket) {
+        socket.emit('set_user_session', { userId: data.user.id });
       } else {
         get().initSocket();
       }
@@ -654,17 +654,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     const existing = get().socket;
     const user = get().currentUser;
     if (existing) {
+      if (user?.id && existing.connected) {
+        existing.emit('set_user_session', { userId: user.id });
+      }
       return;
     }
 
     const token = get().token || localStorage.getItem('hacker_token');
-    const socket = io(HACKERWARS_SOCKET_URL, {
+    const socket = io('/', {
       transports: ['websocket', 'polling'],
       auth: { token }
     });
 
     socket.on('connect', () => {
       const u = get().currentUser;
+      if (u?.id) {
+        socket.emit('set_user_session', { userId: u.id });
+      }
       soundtrack.start();
     });
 
