@@ -240,4 +240,10 @@ if (!capturedServer) {
   throw new Error('Failed to capture the HackerWars HTTP server instance.');
 }
 
+const PORT = Number(process.env.PORT || 10000);
+capturedServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`HackerWars server listening on ${PORT}`);
+});
+
 export default capturedServer;
+export { capturedServer };
