@@ -1,4 +1,6 @@
 import { Socket } from 'socket.io';
+import { GameWorld } from './engine/GameWorld.js';
+import { dbHelpers, supabase } from './database/supabase.js';
 
 type AdminUpdatePayload = {
   targetUserId?: unknown;
@@ -40,4 +42,51 @@ socketPrototype.on = function patchedSocketOn(event: string, listener: (...args:
   });
 };
 
+// Preserve fields that GameWorld's legacy normalization currently resets on every read.
+const gameWorldPrototype = GameWorld.prototype as any;
+const originalUpdatePlayerStats = gameWorldPrototype.updatePlayerStats;
+if (typeof originalUpdatePlayerStats === 'function') {
+  gameWorldPrototype.updatePlayerStats = function patchedUpdatePlayerStats(player: any) {
+    const infections = Array.isArray(player?.infections) ? [...player.infections] : undefined;
+    originalUpdatePlayerStats.call(this, player);
+    if (infections !== undefined) player.infections = infections;
+  };
+}
+
+// Persist player snapshots in order and wait for each write before sending the next one.
+// This prevents an older fire-and-forget Supabase request from overwriting a newer state.
+let playerWriteQueue: Promise<void> = Promise.resolve();
+const originalSavePlayer = dbHelpers.savePlayer;
+dbHelpers.savePlayer = ((userId: string, player: any) => {
+  // Keep the existing in-memory reference authoritative.
+  const current = dbHelpers.getPlayerByUserId(userId);
+  if (current && current !== player) Object.assign(current, player);
+
+  const snapshot = JSON.parse(JSON.stringify(player));
+  const updatedAt = new Date().toISOString();
+
+  playerWriteQueue = playerWriteQueue.then(async () => {
+    if (!supabase) return;
+    const { error } = await supabase
+      .from('players')
+      .upsert({
+        id: snapshot.id,
+        user_id: userId,
+        data: snapshot,
+        updated_at: updatedAt,
+      }, { onConflict: 'user_id' });
+
+    if (error) {
+      console.error('[Supabase player write]', error);
+      // Fall back to the original helper only when the durable write fails.
+      originalSavePlayer(userId, player);
+    }
+  }).catch((error) => {
+    console.error('[Supabase player queue]', error);
+  });
+
+  return undefined;
+}) as typeof dbHelpers.savePlayer;
+
 console.log('[security] admin_update_player payload normalizer loaded');
+console.log('[database] durable player persistence patch loaded');
