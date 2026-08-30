@@ -27,6 +27,10 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_USERNAME = 'Diegodev';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN?.trim();
+const ALLOWED_ORIGINS = new Set(
+  [FRONTEND_ORIGIN, 'https://hackerwars.vercel.app']
+    .filter((origin): origin is string => Boolean(origin))
+);
 
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be configured and contain at least 32 characters.');
@@ -58,15 +62,16 @@ const verifyJwt = (token: unknown): AuthClaims | null => {
 
 const originAllowed = (origin?: string): boolean => {
   if (!origin) return true;
-  if (!FRONTEND_ORIGIN) return false;
-  return origin === FRONTEND_ORIGIN;
+  return ALLOWED_ORIGINS.has(origin);
 };
 
 const corsPath = require.resolve('cors');
 const originalCors = require(corsPath);
 const hardenedCors = (options: any = {}) => originalCors({
   ...options,
-  origin: FRONTEND_ORIGIN || false,
+  origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+    callback(null, originAllowed(origin));
+  },
 });
 const corsModule = require.cache[corsPath];
 if (corsModule) {
@@ -113,6 +118,18 @@ const securityMiddleware = (req: any, res: any, next: any) => {
         return originalJson(body);
       };
     }
+  }
+
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin as string | undefined;
+    if (originAllowed(origin)) {
+      if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Max-Age', '600');
+    }
+    return res.sendStatus(originAllowed(origin) ? 204 : 403);
   }
 
   next();
