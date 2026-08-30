@@ -1,4 +1,5 @@
 import { Mission, MissionDifficulty, MissionType, Player } from '../types/game.js';
+import { GameWorld } from './GameWorld.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export class MissionEngine {
@@ -6,6 +7,36 @@ export class MissionEngine {
 
   constructor() {
     this.seedDefaultMissions();
+    this.installLegacySocketCompatibility();
+  }
+
+  private installLegacySocketCompatibility() {
+    // The socket layer historically passed Player objects to GameWorld methods
+    // that expect a userId string. Normalize those calls here so campaign and
+    // faction actions keep working without duplicating game logic.
+    const proto = GameWorld.prototype as any;
+    if (proto.__missionCompatibilityInstalled) return;
+
+    const originalSetFactionAlignment = proto.setFactionAlignment;
+    const originalSubmitStoryChoice = proto.submitStoryChoice;
+    const originalSendDarkChatMessage = proto.sendDarkChatMessage;
+
+    proto.setFactionAlignment = function (userOrPlayer: string | Player, faction: any) {
+      const userId = typeof userOrPlayer === 'string' ? userOrPlayer : userOrPlayer?.id;
+      return originalSetFactionAlignment.call(this, userId, faction);
+    };
+
+    proto.submitStoryChoice = function (userOrPlayer: string | Player, chapterId: string, choiceId: string) {
+      const userId = typeof userOrPlayer === 'string' ? userOrPlayer : userOrPlayer?.id;
+      return originalSubmitStoryChoice.call(this, userId, chapterId, choiceId);
+    };
+
+    proto.sendDarkChatMessage = function (userOrPlayer: string | Player, channelId: string, text: string) {
+      const userId = typeof userOrPlayer === 'string' ? userOrPlayer : userOrPlayer?.id;
+      return originalSendDarkChatMessage.call(this, userId, channelId, text);
+    };
+
+    proto.__missionCompatibilityInstalled = true;
   }
 
   private seedDefaultMissions() {
@@ -72,10 +103,8 @@ export class MissionEngine {
   public acceptMission(player: Player, id: string): { success: boolean; mission?: Mission; message: string } {
     const mission = this.getMissionById(id);
     if (!mission || mission.status !== 'available') return { success: false, message: 'Missão não encontrada ou indisponível.' };
-
     player.activeMissions = player.activeMissions || [];
     if (player.activeMissions.some(m => m.id === id)) return { success: false, message: 'Você já possui esta missão em andamento.' };
-
     const activeMission: Mission = { ...mission, status: 'active' };
     player.activeMissions.push(activeMission);
     return { success: true, mission: activeMission, message: `Contrato "${mission.title}" aceito com sucesso.` };
@@ -104,21 +133,17 @@ export class MissionEngine {
     player.activeMissions = player.activeMissions || [];
     const index = player.activeMissions.findIndex(m => m.id === id);
     if (index === -1) return { success: false, message: 'Esta missão não está ativa para o seu jogador.' };
-
     const mission = player.activeMissions[index];
     if (!this.isMissionComplete(player, mission)) {
       return { success: false, mission, message: `Objetivo ainda não concluído: ${mission.title}. Verifique se a operação necessária foi realmente finalizada.` };
     }
-
     player.cash += mission.rewardCash;
     if (!player.cryptoWallet) player.cryptoWallet = { btc: 0, eth: 0, doge: 0, shdw: 0, pepe: 0 };
     player.cryptoWallet.btc = Number(((player.cryptoWallet.btc || 0) + mission.rewardCrypto).toFixed(6));
     player.crypto = player.cryptoWallet.btc;
     player.reputation += mission.rewardRep;
-
     const completedMission: Mission = { ...mission, status: 'completed' };
     player.activeMissions.splice(index, 1);
-
     return { success: true, mission: completedMission, message: `Missão concluída! +$${mission.rewardCash.toLocaleString()} USD, +${mission.rewardCrypto} BTC e +${mission.rewardRep} REP.` };
   }
 
