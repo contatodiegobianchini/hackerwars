@@ -5,14 +5,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const getCompileCost = (version: number): number => {
   const steps = Math.max(0, Math.round((version - 1.0) * 10));
-  // Balanced and accessible progression curve:
-  // v1.0: $50 | v1.5: $245 | v2.0: $520 | v5.0: $2,800 | v10.0: $8,500 | v25.0: $34,000 | v50.0: $95,000
   return Math.round(50 + steps * 30 + Math.pow(steps, 1.32) * 15);
 };
 
 export const getBaseCompileSeconds = (version: number): number => {
   const steps = Math.max(0, Math.round((version - 1.0) * 10));
-  // Exact user progression: v1.0->v1.1 is 60s (1m), v1.1->v1.2 is 90s (1m30s), v1.2->v1.3 is 120s (2m), etc.
   return 60 + steps * 30;
 };
 
@@ -48,7 +45,6 @@ export class ProcessEngine {
     const player = this.gameWorld.getPlayer(playerId);
     const activeForPlayer = this.getActiveProcesses(playerId);
 
-    // Check RAM limit with Perks
     let maxTasks = player.hardware.ram.maxTasks;
     if (player.unlockedStoryPerks?.some(p => p.id === 'perk-quantum-multitask')) maxTasks += 2;
     if (player.unlockedStoryPerks?.some(p => p.id === 'perk-singularity-god')) maxTasks = 999;
@@ -60,7 +56,6 @@ export class ProcessEngine {
       };
     }
 
-    // Validation for CRACK: Cracker MUST be >= Target Hasher
     if (type === 'crack' && params.targetIp) {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
@@ -77,62 +72,57 @@ export class ProcessEngine {
       }
     }
 
-    // Validation for PLANT SPYWARE
     if (type === 'plant_spyware' && params.targetIp) {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
-      if (!target.security.isBreached) {
-        return { success: false, message: 'Você precisa obter acesso ROOT (Crack) antes de implantar o Spyware!' };
-      }
+      if (!target.security.isBreached) return { success: false, message: 'Você precisa obter acesso ROOT (Crack) antes de implantar o Spyware!' };
       const spyware = player.software.find(s => s.type === 'spyware');
-      if (!spyware) {
-        return { success: false, message: 'Você não possui nenhum software Spyware instalado!' };
-      }
+      if (!spyware) return { success: false, message: 'Você não possui nenhum software Spyware instalado!' };
     }
 
-    // Validation for MASS BANK HEIST
     if (type === 'mass_bank_heist' && params.targetIp) {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
-      if (target.type !== 'bank') {
-        return { success: false, message: 'Este servidor não é uma instituição financeira bancária!' };
-      }
-      if (!target.security.isBreached) {
-        return { success: false, message: 'Você precisa obter acesso ROOT no servidor bancário antes de infiltrar a database central!' };
+      if (target.type !== 'bank') return { success: false, message: 'Este servidor não é uma instituição financeira bancária!' };
+      if (!target.security.isBreached) return { success: false, message: 'Você precisa obter acesso ROOT no servidor bancário antes de infiltrar a database central!' };
+    }
+
+    if (type === 'download' && params.targetIp) {
+      const target = this.gameWorld.getServer(params.targetIp);
+      if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
+      if (!target.security.isBreached) return { success: false, message: 'Acesso negado: quebre a senha do servidor antes de baixar arquivos.' };
+      if (params.targetFileId && !target.files.some(f => f.id === params.targetFileId)) {
+        return { success: false, message: 'Arquivo alvo não encontrado no servidor.' };
       }
     }
 
-    // Validation for COMPILE (Software Evolution): Demands Money & Time
     if (type === 'compile' && params.softwareId) {
       const soft = player.software.find(s => s.id === params.softwareId);
       if (!soft) return { success: false, message: 'Software não encontrado.' };
 
-      // Prevent duplicate compilation for the same software
       const isAlreadyCompiling = activeForPlayer.some(
         p => p.type === 'compile' && (p.details?.softwareId === params.softwareId || p.targetFileId === params.softwareId) && p.status === 'running'
       );
       if (isAlreadyCompiling) {
-        return {
-          success: false,
-          message: `O software "${soft.name}" já está sendo compilado! Aguarde a conclusão da evolução atual.`,
-        };
+        return { success: false, message: `O software "${soft.name}" já está sendo compilado! Aguarde a conclusão da evolução atual.` };
       }
 
       const cost = getCompileCost(soft.version);
       if (player.cash < cost) {
-        return {
-          success: false,
-          message: `Saldo insuficiente para evoluir ${soft.name}! Necessário $${cost.toLocaleString()} USD.`,
-        };
+        return { success: false, message: `Saldo insuficiente para evoluir ${soft.name}! Necessário $${cost.toLocaleString()} USD.` };
       }
 
-      // Deduct research cost immediately
       player.cash -= cost;
       this.gameWorld.savePlayerState(playerId);
     }
 
     const durationMs = this.calculateDuration(playerId, type, params);
     const now = Date.now();
+    const details = params.details && typeof params.details === 'object' ? { ...params.details } : {};
+
+    // Keep important identifiers in both the normalized fields and details so completion
+    // cannot silently lose the target when callers use either payload shape.
+    if (params.softwareId && !details.softwareId) details.softwareId = params.softwareId;
 
     const process: GameProcess = {
       id: `proc-${uuidv4().substring(0, 8)}`,
@@ -146,7 +136,7 @@ export class ProcessEngine {
       endTime: now + durationMs,
       durationMs,
       status: 'running',
-      details: params.details || {},
+      details,
     };
 
     this.processes.set(process.id, process);
@@ -177,23 +167,17 @@ export class ProcessEngine {
         const targetDefense = target ? target.security.hasherLevel : 1.0;
         const playerCracker = player.software.find(s => s.type === 'cracker');
         const crackerVersion = playerCracker ? playerCracker.version : 1.0;
-
-        // GPU bruteforce acceleration & Russian Perk
         const computePower = cpuSpeed + gpuTflops * 0.15;
         let timeSec = ((targetDefense / crackerVersion) * 6.0) / (computePower / 2);
-        if (player.unlockedStoryPerks?.some(p => p.id === 'perk-military-overclock')) {
-          timeSec *= 0.65;
-        }
+        if (player.unlockedStoryPerks?.some(p => p.id === 'perk-military-overclock')) timeSec *= 0.65;
         return Math.max(2000, Math.round(timeSec * 1000));
       }
-
       case 'scan': {
         const playerScanner = player.software.find(s => s.type === 'portscan');
         const scanVer = playerScanner ? playerScanner.version : 1.0;
         const timeSec = (4.0 / scanVer) / (netSpeed / 10);
         return Math.max(1500, Math.round(timeSec * 1000));
       }
-
       case 'download': {
         const target = params.targetIp ? this.gameWorld.getServer(params.targetIp) : null;
         const file = target?.files.find(f => f.id === params.targetFileId);
@@ -201,14 +185,12 @@ export class ProcessEngine {
         const downloadSec = (sizeMb / (netSpeed / 8)) * 1.2;
         return Math.max(2000, Math.round(downloadSec * 1000));
       }
-
       case 'upload': {
         const soft = player.software.find(s => s.id === params.softwareId);
         const sizeMb = soft ? soft.sizeMb : 15;
         const uploadSec = (sizeMb / ((netSpeed * 0.5) / 8)) * 1.2;
         return Math.max(2000, Math.round(uploadSec * 1000));
       }
-
       case 'compile': {
         const soft = player.software.find(s => s.id === params.softwareId);
         const version = soft ? soft.version : 1.0;
@@ -217,16 +199,12 @@ export class ProcessEngine {
         const finalSec = Math.max(10, Math.round(baseSec / Math.max(0.6, computePower)));
         return finalSec * 1000;
       }
-
-      case 'wipelog':
-        return Math.max(2000, Math.round(4000 / (cpuSpeed / 2)));
-
+      case 'wipelog': return Math.max(2000, Math.round(4000 / (cpuSpeed / 2)));
       case 'antivirus_scan': {
         const av = player.software.find(s => s.type === 'antivirus');
         const avVer = av ? av.version : 1.0;
         return Math.max(2500, Math.round((6000 / avVer) / (cpuSpeed / 2)));
       }
-
       case 'ddos': {
         const target = params.targetIp ? this.gameWorld.getServer(params.targetIp) : null;
         const targetNet = target ? target.hardware.networkMbps : 100;
@@ -235,15 +213,9 @@ export class ProcessEngine {
         const timeSec = Math.max(4, Math.round((targetNet / botnetPower) * 8));
         return Math.max(3500, timeSec * 1000);
       }
-
-      case 'plant_spyware':
-        return Math.max(3000, Math.round(5000 / (cpuSpeed / 2)));
-
-      case 'mass_bank_heist':
-        return Math.max(8000, Math.round(12000 / (cpuSpeed / 2)));
-
-      default:
-        return 4000;
+      case 'plant_spyware': return Math.max(3000, Math.round(5000 / (cpuSpeed / 2)));
+      case 'mass_bank_heist': return Math.max(8000, Math.round(12000 / (cpuSpeed / 2)));
+      default: return 4000;
     }
   }
 
@@ -255,7 +227,6 @@ export class ProcessEngine {
 
       for (const [id, proc] of this.processes.entries()) {
         if (proc.status !== 'running') continue;
-
         playerIds.add(proc.playerId);
         const elapsed = now - proc.startTime;
         const rawProgress = Math.min(100, Math.round((elapsed / proc.durationMs) * 100));
@@ -274,9 +245,7 @@ export class ProcessEngine {
         }
       }
 
-      if (hasUpdates) {
-        playerIds.forEach(pId => this.broadcastProcesses(pId));
-      }
+      if (hasUpdates) playerIds.forEach(pId => this.broadcastProcesses(pId));
     }, 200);
   }
 
@@ -287,53 +256,54 @@ export class ProcessEngine {
     switch (proc.type) {
       case 'crack':
         if (proc.targetIp) {
-          this.gameWorld.onPasswordCracked(userId, proc.targetIp);
-          resultMessage = `Acesso ROOT obtido com sucesso em ${proc.targetIp}!`;
+          const ok = this.gameWorld.onPasswordCracked(userId, proc.targetIp);
+          resultMessage = ok
+            ? `Acesso ROOT obtido com sucesso em ${proc.targetIp}!`
+            : `Falha ao conceder acesso ROOT em ${proc.targetIp}. O servidor não está mais disponível.`;
         }
         break;
-
       case 'scan':
         if (proc.targetIp) {
           this.gameWorld.portScan(userId, proc.targetIp);
           resultMessage = `Scan de portas concluído para ${proc.targetIp}.`;
         }
         break;
-
       case 'download':
         if (proc.targetIp && proc.targetFileId) {
           const res = this.gameWorld.downloadFile(userId, proc.targetIp, proc.targetFileId);
           resultMessage = res.success ? `Download concluído: ${res.file?.name}` : (res.message || 'Falha no download');
         }
         break;
-
       case 'upload':
-        if (proc.targetIp && proc.details?.softwareId) {
-          const res = this.gameWorld.uploadFile(userId, proc.targetIp, proc.details.softwareId);
+        if (proc.targetIp && (proc.details?.softwareId || proc.targetFileId)) {
+          const softwareId = proc.details?.softwareId || proc.targetFileId;
+          const res = this.gameWorld.uploadFile(userId, proc.targetIp, softwareId);
           resultMessage = res.message || 'Upload concluído';
         }
         break;
-
       case 'compile':
-        if (proc.details?.softwareId) {
-          const res = this.gameWorld.compileSoftware(userId, proc.details.softwareId);
-          resultMessage = res.message || 'Compilação concluída!';
+        if (proc.details?.softwareId || proc.targetFileId) {
+          const softwareId = proc.details?.softwareId || proc.targetFileId;
+          const res = this.gameWorld.compileSoftware(userId, softwareId);
+          resultMessage = res.success
+            ? (res.message || 'Compilação concluída!')
+            : (res.message || 'Falha ao atualizar o software.');
+        } else {
+          resultMessage = 'Compilação concluída, mas o software alvo não foi identificado.';
         }
         break;
-
       case 'wipelog':
         if (proc.targetIp) {
           this.gameWorld.wipeRemoteLogs(proc.targetIp);
           resultMessage = `Todos os logs em ${proc.targetIp} foram apagados.`;
         }
         break;
-
       case 'ddos':
         if (proc.targetIp) {
           const res = this.gameWorld.ddosAttack(userId, proc.targetIp);
           resultMessage = res.message;
         }
         break;
-
       case 'antivirus_scan': {
         const player = this.gameWorld.getPlayer(userId);
         const res = this.gameWorld.defenseEngine.scanAndCleanInfections(player);
@@ -341,14 +311,12 @@ export class ProcessEngine {
         resultMessage = res.message;
         break;
       }
-
       case 'plant_spyware':
         if (proc.targetIp) {
           const res = this.gameWorld.plantSpyware(userId, proc.targetIp);
           resultMessage = res.message;
         }
         break;
-
       case 'mass_bank_heist':
         if (proc.targetIp) {
           const res = this.gameWorld.executeMassBankHeist(userId, proc.targetIp);
