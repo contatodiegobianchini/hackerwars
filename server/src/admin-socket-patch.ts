@@ -1,6 +1,5 @@
 import { Socket } from 'socket.io';
 import { GameWorld } from './engine/GameWorld.js';
-import { dbHelpers, supabase } from './database/supabase.js';
 
 type AdminUpdatePayload = {
   targetUserId?: unknown;
@@ -16,6 +15,14 @@ type AdminUpdatePayload = {
 
 const socketPrototype = Socket.prototype as any;
 const originalOn = socketPrototype.on;
+const originalOnevent = socketPrototype.onevent;
+
+// Capture the live GameWorld instance without changing index.ts startup order.
+const originalGetPlayer = (GameWorld.prototype as any).getPlayer;
+(GameWorld.prototype as any).getPlayer = function patchedGetPlayer(...args: any[]) {
+  (globalThis as any).__hackerWarsGameWorld = this;
+  return originalGetPlayer.apply(this, args);
+};
 
 socketPrototype.on = function patchedSocketOn(event: string, listener: (...args: any[]) => unknown) {
   if (event !== 'admin_update_player') {
@@ -42,51 +49,48 @@ socketPrototype.on = function patchedSocketOn(event: string, listener: (...args:
   });
 };
 
-// Preserve fields that GameWorld's legacy normalization currently resets on every read.
-const gameWorldPrototype = GameWorld.prototype as any;
-const originalUpdatePlayerStats = gameWorldPrototype.updatePlayerStats;
-if (typeof originalUpdatePlayerStats === 'function') {
-  gameWorldPrototype.updatePlayerStats = function patchedUpdatePlayerStats(player: any) {
-    const infections = Array.isArray(player?.infections) ? [...player.infections] : undefined;
-    originalUpdatePlayerStats.call(this, player);
-    if (infections !== undefined) player.infections = infections;
-  };
-}
+// The client already emits `open_lootbox`, but the main socket router historically
+// had no corresponding listener. Intercept the incoming Socket.IO packet here so
+// the existing GameWorld.openLootbox implementation can be used without duplicating
+// economy/reward logic in the transport layer.
+socketPrototype.onevent = function patchedSocketOnevent(packet: any) {
+  const eventName = packet?.data?.[0];
 
-// Persist player snapshots in order and wait for each write before sending the next one.
-// This prevents an older fire-and-forget Supabase request from overwriting a newer state.
-let playerWriteQueue: Promise<void> = Promise.resolve();
-const originalSavePlayer = dbHelpers.savePlayer;
-dbHelpers.savePlayer = ((userId: string, player: any) => {
-  // Keep the existing in-memory reference authoritative.
-  const current = dbHelpers.getPlayerByUserId(userId);
-  if (current && current !== player) Object.assign(current, player);
+  if (eventName === 'open_lootbox') {
+    const socket = this as any;
+    const payload = packet?.data?.[1] ?? {};
+    const userId = socket.data?.user?.userId;
+    const gameWorld = (globalThis as any).__hackerWarsGameWorld as GameWorld | undefined;
 
-  const snapshot = JSON.parse(JSON.stringify(player));
-  const updatedAt = new Date().toISOString();
-
-  playerWriteQueue = playerWriteQueue.then(async () => {
-    if (!supabase) return;
-    const { error } = await supabase
-      .from('players')
-      .upsert({
-        id: snapshot.id,
-        user_id: userId,
-        data: snapshot,
-        updated_at: updatedAt,
-      }, { onConflict: 'user_id' });
-
-    if (error) {
-      console.error('[Supabase player write]', error);
-      // Fall back to the original helper only when the durable write fails.
-      originalSavePlayer(userId, player);
+    if (!userId || !gameWorld) {
+      socket.emit('lootbox_result', {
+        success: false,
+        message: 'Servidor do Black Market ainda não está pronto. Tente novamente.',
+      });
+      return;
     }
-  }).catch((error) => {
-    console.error('[Supabase player queue]', error);
-  });
 
-  return undefined;
-}) as typeof dbHelpers.savePlayer;
+    const crateId = typeof payload.crateId === 'string' ? payload.crateId : '';
+    const paymentMethod = payload.paymentMethod === 'btc' ? 'btc' : payload.paymentMethod === 'usd' ? 'usd' : null;
+
+    if (!crateId || !paymentMethod) {
+      socket.emit('lootbox_result', {
+        success: false,
+        message: 'Dados de compra da lootbox inválidos.',
+      });
+      return;
+    }
+
+    const result = gameWorld.openLootbox(userId, crateId, paymentMethod);
+    socket.emit('lootbox_result', {
+      ...result,
+      player: gameWorld.getPlayer(userId),
+    });
+    return;
+  }
+
+  return originalOnevent.call(this, packet);
+};
 
 console.log('[security] admin_update_player payload normalizer loaded');
-console.log('[database] durable player persistence patch loaded');
+console.log('[black-market] open_lootbox socket bridge loaded');
