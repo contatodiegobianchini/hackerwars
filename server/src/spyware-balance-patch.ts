@@ -3,7 +3,10 @@ import { dbHelpers } from './database/sqlite.js';
 
 const gameWorldPrototype = GameWorld.prototype as any;
 
-// Rebalance the automatic spyware/keylogger sniffer for a slower early-game economy.
+const BANK_PAYOUT_CAP = 300;
+const BTC_PAYOUT_CAP = 0.0015;
+
+// Rebalance the automatic spyware/keylogger sniffer for a much slower early-game economy.
 gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTicker() {
   setInterval(() => {
     for (const server of this.servers.values()) {
@@ -15,13 +18,13 @@ gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTi
 
         const roll = Math.random();
 
-        // Keylogger / bank credential interception: 8% chance per tick, max 3 pending accounts.
-        if (roll < 0.08) {
+        // Keylogger: rare interception and tiny victim balances.
+        if (roll < 0.04) {
           if (!implant.discoveredAccounts) implant.discoveredAccounts = [];
-          if (implant.discoveredAccounts.length < 3) {
+          if (implant.discoveredAccounts.length < 2) {
             const accNum = `ACC-${Math.floor(Math.random() * 89999 + 10000)}`;
-            const rawBalance = Math.round(server.security.hasherLevel * 500 + 100 + Math.random() * 1000);
-            const balance = Math.min(1500, rawBalance);
+            const rawBalance = Math.round(25 + server.security.hasherLevel * 80 + Math.random() * 250);
+            const balance = Math.min(BANK_PAYOUT_CAP, rawBalance);
             const victimAcc = {
               accountNumber: accNum,
               bankIp: '12.189.44.10',
@@ -46,14 +49,14 @@ gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTi
             }
           }
         }
-        // Private wallet interception: 3% effective chance per tick and small amounts.
-        else if (roll < 0.11) {
+        // Keylogger wallet interception: extremely rare and tiny balances.
+        else if (roll < 0.055) {
           if (!implant.discoveredCrypto) implant.discoveredCrypto = [];
-          if (implant.discoveredCrypto.length < 2) {
-            const btcAmt = Number((Math.random() * 0.008 + 0.002).toFixed(4));
+          if (implant.discoveredCrypto.length < 1) {
+            const btcAmt = Number((Math.random() * 0.001 + 0.0001).toFixed(4));
             const victimCrypto = {
               symbol: 'BTC',
-              amount: btcAmt,
+              amount: Math.min(BTC_PAYOUT_CAP, btcAmt),
               address: `bc1q${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 6)}`,
               password: `wallet_${Math.random().toString(36).substring(2, 6)}`,
             };
@@ -68,7 +71,7 @@ gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTi
                 targetHostname: server.hostname,
                 credentialType: 'crypto_wallet',
                 crypto: victimCrypto,
-                message: `🕵️ SPYWARE ALERTA: Carteira de Bitcoin interceptada em ${server.hostname}! Saldo: +${btcAmt} BTC pronto para drenagem.`,
+                message: `🕵️ SPYWARE ALERTA: Carteira de Bitcoin interceptada em ${server.hostname}! Saldo: +${victimCrypto.amount} BTC pronto para drenagem.`,
               });
             }
           }
@@ -88,12 +91,12 @@ gameWorldPrototype.plantSpyware = function balancedPlantSpyware(userId: string, 
     if (implant) {
       if (implant.discoveredAccounts) {
         for (const account of implant.discoveredAccounts) {
-          if (typeof account.balance === 'number') account.balance = Math.min(1500, account.balance);
+          if (typeof account.balance === 'number') account.balance = Math.min(BANK_PAYOUT_CAP, Math.max(1, account.balance));
         }
       }
       if (implant.discoveredCrypto) {
         for (const wallet of implant.discoveredCrypto) {
-          if (typeof wallet.amount === 'number') wallet.amount = Math.min(0.01, wallet.amount);
+          if (typeof wallet.amount === 'number') wallet.amount = Math.min(BTC_PAYOUT_CAP, Math.max(0.0001, wallet.amount));
         }
       }
       dbHelpers.saveServer(result.server);
@@ -108,7 +111,7 @@ const originalSiphonAccount = gameWorldPrototype.siphonVictimAccount;
 gameWorldPrototype.siphonVictimAccount = function balancedSiphonAccount(userId: string, targetIp: string, accountNumber: string) {
   const result = originalSiphonAccount.call(this, userId, targetIp, accountNumber);
   if (result?.success && typeof result.amount === 'number') {
-    const ceiling = 1500;
+    const ceiling = BANK_PAYOUT_CAP;
     const excess = result.amount - ceiling;
     if (excess > 0) {
       const player = this.getPlayer(userId);
@@ -127,13 +130,12 @@ const originalSiphonCrypto = gameWorldPrototype.siphonVictimCrypto;
 gameWorldPrototype.siphonVictimCrypto = function balancedSiphonCrypto(userId: string, targetIp: string, address: string) {
   const result = originalSiphonCrypto.call(this, userId, targetIp, address);
   if (result?.success && typeof result.amount === 'number') {
-    const ceiling = 0.01;
+    const ceiling = BTC_PAYOUT_CAP;
     const excess = Number((result.amount - ceiling).toFixed(6));
     if (excess > 0) {
       const player = this.getPlayer(userId);
       player.cryptoWallet.btc = Number(Math.max(0, (player.cryptoWallet.btc || 0) - excess).toFixed(6));
       player.crypto = player.cryptoWallet.btc;
-      // Undo reputation derived from the amount above the cap.
       player.reputation = Math.max(0, player.reputation - Math.round(excess * 800));
       this.savePlayerState(userId);
       result.amount = ceiling;
@@ -143,4 +145,4 @@ gameWorldPrototype.siphonVictimCrypto = function balancedSiphonCrypto(userId: st
   return result;
 };
 
-console.log('[balance] spyware/keylogger income rebalance loaded');
+console.log('[balance] spyware/keylogger income rebalance v2 loaded');
