@@ -54,13 +54,35 @@ const refreshPlayerIds = async () => {
 const loadMinerRows = async () => {
   const { data, error } = await supabase.from('server_miners').select('*');
   if (error) throw new Error(`[MinerPersistence] Falha ao carregar miners: ${error.message}`);
-  minerCache.clear();
+
+  const remoteCache = new Map<string, MinerRow>();
   for (const row of (data || []) as MinerRow[]) {
-    minerCache.set(cacheKey(row.server_ip, row.owner_user_id), row);
+    remoteCache.set(cacheKey(row.server_ip, row.owner_user_id), row);
   }
+
+  // Keep miners created while hydration was in flight. Remote state wins when both exist.
+  for (const [key, row] of minerCache) {
+    if (!remoteCache.has(key)) remoteCache.set(key, row);
+  }
+
+  minerCache.clear();
+  for (const [key, row] of remoteCache) minerCache.set(key, row);
 };
 
-await Promise.all([refreshPlayerIds(), loadMinerRows()]);
+const hydrateMinerPersistence = async () => {
+  const results = await Promise.allSettled([refreshPlayerIds(), loadMinerRows()]);
+  const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+
+  if (failures.length > 0) {
+    for (const failure of failures) {
+      console.error('[MinerPersistence] Falha na hidratação:', failure.reason);
+    }
+    console.warn(`[miner-persistence] hydration completed with ${failures.length} failure(s); server startup was not blocked`);
+    return;
+  }
+
+  console.log(`[miner-persistence] restored ${minerCache.size} remote miners from Supabase`);
+};
 
 if (!dbHelpers.__minerPersistencePatched) {
   const originalGetAllServers = dbHelpers.getAllServers;
@@ -76,7 +98,9 @@ if (!dbHelpers.__minerPersistencePatched) {
 
   dbHelpers.resetAllServers = (...args: any[]) => {
     minerCache.clear();
-    void supabase.from('server_miners').delete().neq('id', '');
+    void supabase.from('server_miners').delete().neq('id', '').catch((error) => {
+      console.error('[MinerPersistence] Falha ao limpar miners remotos:', error);
+    });
     return originalResetAllServers(...args);
   };
 
@@ -125,7 +149,9 @@ if (!worldProto.__minerPersistencePatched) {
           minerCache.set(cacheKey(targetIp, userId), row);
           Object.assign(miner, { ownerUserId: userId });
           mergeMiners(updatedServer);
-          void supabase.from('server_miners').upsert(row, { onConflict: 'server_ip,owner_user_id' });
+          void supabase.from('server_miners').upsert(row, { onConflict: 'server_ip,owner_user_id' }).then(({ error }) => {
+            if (error) console.error('[MinerPersistence] Falha ao persistir miner:', error.message);
+          });
           dbHelpers.saveServer(updatedServer);
         }
       }
@@ -135,10 +161,14 @@ if (!worldProto.__minerPersistencePatched) {
 
   worldProto.adminResetWorldServers = function patchedAdminResetWorldServers(adminUserId: string) {
     minerCache.clear();
-    void supabase.from('server_miners').delete().neq('id', '');
+    void supabase.from('server_miners').delete().neq('id', '').catch((error) => {
+      console.error('[MinerPersistence] Falha ao limpar miners remotos:', error);
+    });
     return originalAdminResetWorldServers.call(this, adminUserId);
   };
 
   worldProto.__minerPersistencePatched = true;
-  console.log(`[miner-persistence] restored ${minerCache.size} remote miners from Supabase`);
+  console.log('[miner-persistence] patch loaded; remote hydration running in background');
 }
+
+void hydrateMinerPersistence();
