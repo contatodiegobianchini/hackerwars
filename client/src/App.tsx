@@ -69,6 +69,12 @@ export const App: React.FC = () => {
     );
   }
 
+  const viewZones: Record<string, string> = {
+    known_servers: 'network', target_server: 'network', missions: 'operations', campaign: 'operations', processes: 'operations',
+    bank: 'economy', crypto: 'economy', black_market: 'economy', clans: 'social', dark_chat: 'social', leaderboard: 'social',
+    antivirus: 'security', logs: 'security', software: 'infrastructure', hardware: 'infrastructure', datacenter: 'infrastructure'
+  };
+
   const renderCurrentView = () => {
     switch (currentView) {
       case 'my_server': return <MyServerView />;
@@ -101,7 +107,7 @@ export const App: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         <Sidebar />
 
-        <main data-view={currentView} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
+        <main data-view={currentView} data-zone={viewZones[currentView] || 'core'} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
           <div className="max-w-6xl mx-auto pb-24 md:pb-16">
             {renderCurrentView()}
           </div>

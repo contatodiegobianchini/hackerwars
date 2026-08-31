@@ -1,3 +1,7 @@
+@import "./styles/tokens.css";
+@import "./styles/zones.css";
+@import "./styles/motion.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -385,3 +389,15 @@ main[data-view="known_servers"] > div::before { background: #0891b2; }
     scroll-behavior: auto !important;
   }
 }
+
+/* Cyber OS design system. These primitives are opt-in so legacy views can migrate incrementally. */
+.cyber-panel { position: relative; background: linear-gradient(145deg, rgba(19,29,32,.96), rgba(10,16,18,.96)); border: 1px solid var(--border-subtle); border-radius: 5px; box-shadow: inset 0 1px 0 rgba(255,255,255,.025), 0 12px 30px rgba(0,0,0,.16); }
+.cyber-panel--accent::before { content: ''; position: absolute; inset: 0 auto auto 0; width: 52px; height: 2px; background: var(--signal); box-shadow: 0 0 14px rgba(var(--signal-rgb),.65); }
+.cyber-kicker { color: var(--signal); font: 700 10px/1.2 'Fira Code', monospace; letter-spacing: .15em; text-transform: uppercase; }
+.cyber-module-title { color: var(--text-primary); font-size: .95rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.cyber-metric { min-width: 0; padding: .75rem; background: rgba(6,11,12,.54); border: 1px solid var(--border-subtle); border-radius: 3px; }
+.cyber-metric__label { display:flex; align-items:center; gap:.4rem; color:var(--text-muted); font:700 9px/1.2 'Fira Code',monospace; letter-spacing:.09em; }
+.cyber-metric__label svg { width:12px; height:12px; color:var(--signal); }.cyber-metric__value { display:block; margin-top:.45rem; color:var(--text-primary); font:700 .92rem/1.15 'Fira Code',monospace; }.cyber-metric__detail { display:block; margin-top:.3rem; color:var(--text-secondary); font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cyber-metric--network { --signal: var(--signal-network); }.cyber-metric--danger { --signal:var(--signal-danger); }.cyber-metric--economy { --signal:var(--signal-economy); }
+.cyber-progress__labels { display:flex; justify-content:space-between; gap:.75rem; margin-bottom:.4rem; color:var(--text-secondary); font:700 9px/1.1 'Fira Code',monospace; letter-spacing:.07em; text-transform:uppercase; }.cyber-progress__track { height:5px; overflow:hidden; background:#050909; border:1px solid rgba(174,209,199,.12); }.cyber-progress__track span { display:block; height:100%; background:var(--signal); box-shadow:0 0 10px rgba(var(--signal-rgb),.7); }.cyber-progress--network { --signal:var(--signal-network); --signal-rgb:55,185,210; }.cyber-progress--danger { --signal:var(--signal-danger); --signal-rgb:236,100,100; }.cyber-progress--economy { --signal:var(--signal-economy); --signal-rgb:227,170,72; }
+.cyber-button { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; min-height:34px; padding:.5rem .75rem; border:1px solid var(--border-active); border-radius:3px; color:#07100a; background:var(--signal); font:700 10px/1 'Fira Code',monospace; letter-spacing:.08em; text-transform:uppercase; transition:filter .15s ease, transform .15s ease; }.cyber-button:hover { filter:brightness(1.12); }.cyber-button:active { transform:translateY(1px); }.cyber-button--secondary { color:var(--text-primary); background:transparent; border-color:var(--border-subtle); }.cyber-button--danger { color:#fff; background:var(--signal-danger); border-color:rgba(236,100,100,.7); }
