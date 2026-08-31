@@ -3,9 +3,7 @@ import { dbHelpers } from './database/sqlite.js';
 
 const gameWorldPrototype = GameWorld.prototype as any;
 
-// The original sniffer rewarded successful spyware implants too frequently and
-// generated victim balances that were disproportionately large for early game.
-// Replace only the ticker so the rest of the spyware mechanics remain intact.
+// Rebalance the automatic spyware/keylogger sniffer for a slower early-game economy.
 gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTicker() {
   setInterval(() => {
     for (const server of this.servers.values()) {
@@ -17,7 +15,7 @@ gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTi
 
         const roll = Math.random();
 
-        // Keylogger / bank credential interception: much less frequent and lower value.
+        // Keylogger / bank credential interception: 8% chance per tick, max 3 pending accounts.
         if (roll < 0.08) {
           if (!implant.discoveredAccounts) implant.discoveredAccounts = [];
           if (implant.discoveredAccounts.length < 3) {
@@ -48,7 +46,7 @@ gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTi
             }
           }
         }
-        // Private wallet interception: rare and intentionally small.
+        // Private wallet interception: 3% effective chance per tick and small amounts.
         else if (roll < 0.11) {
           if (!implant.discoveredCrypto) implant.discoveredCrypto = [];
           if (implant.discoveredCrypto.length < 2) {
@@ -80,19 +78,42 @@ gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTi
   }, 15000);
 };
 
-// Cap payouts from older/high-value discoveries too, so previously generated
-// loot cannot bypass the new economy balance.
+// Clamp automatic/legacy bank findings so old oversized discoveries cannot bypass the rebalance.
+const originalPlantSpyware = gameWorldPrototype.plantSpyware;
+gameWorldPrototype.plantSpyware = function balancedPlantSpyware(userId: string, targetIp: string) {
+  const result = originalPlantSpyware.call(this, userId, targetIp);
+  if (result?.success && result.server?.activeSpyware) {
+    const player = this.getPlayer(userId);
+    const implant = result.server.activeSpyware.find((item: any) => item.ownerId === player.id);
+    if (implant) {
+      if (implant.discoveredAccounts) {
+        for (const account of implant.discoveredAccounts) {
+          if (typeof account.balance === 'number') account.balance = Math.min(1500, account.balance);
+        }
+      }
+      if (implant.discoveredCrypto) {
+        for (const wallet of implant.discoveredCrypto) {
+          if (typeof wallet.amount === 'number') wallet.amount = Math.min(0.01, wallet.amount);
+        }
+      }
+      dbHelpers.saveServer(result.server);
+      result.server = this.getServer(targetIp);
+    }
+  }
+  return result;
+};
+
+// Cap payouts from old discoveries as well as newly generated ones.
 const originalSiphonAccount = gameWorldPrototype.siphonVictimAccount;
 gameWorldPrototype.siphonVictimAccount = function balancedSiphonAccount(userId: string, targetIp: string, accountNumber: string) {
   const result = originalSiphonAccount.call(this, userId, targetIp, accountNumber);
   if (result?.success && typeof result.amount === 'number') {
-    // Existing records can predate the balance rebalance. Clamp the actual payout
-    // by rolling back any amount above the new per-hit ceiling.
     const ceiling = 1500;
     const excess = result.amount - ceiling;
     if (excess > 0) {
       const player = this.getPlayer(userId);
       player.cash = Math.max(0, player.cash - excess);
+      player.reputation = Math.max(0, player.reputation - 120);
       if (player.bankAccounts?.length) player.bankAccounts[0].balance = player.cash;
       this.savePlayerState(userId);
       result.amount = ceiling;
@@ -112,6 +133,8 @@ gameWorldPrototype.siphonVictimCrypto = function balancedSiphonCrypto(userId: st
       const player = this.getPlayer(userId);
       player.cryptoWallet.btc = Number(Math.max(0, (player.cryptoWallet.btc || 0) - excess).toFixed(6));
       player.crypto = player.cryptoWallet.btc;
+      // Undo reputation derived from the amount above the cap.
+      player.reputation = Math.max(0, player.reputation - Math.round(excess * 800));
       this.savePlayerState(userId);
       result.amount = ceiling;
       result.message = `Carteira interceptada drenada! +${ceiling.toFixed(4)} BTC transferidos para sua conta anônima.`;
