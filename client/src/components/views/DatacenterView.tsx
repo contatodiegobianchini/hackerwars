@@ -1,19 +1,12 @@
 import React from 'react';
 import { useGameStore } from '../../stores/useGameStore.js';
 import {
-  HardDrive,
   Server,
-  Cpu,
-  Wifi,
-  Zap,
-  Flame,
-  Radio,
   ArrowUpCircle,
   DollarSign,
   PlusCircle,
   ShieldCheck
 } from 'lucide-react';
-import { PlayerVps, VpsModuleType } from '../../types/game.js';
 
 export const DatacenterView: React.FC = () => {
   const {
@@ -38,23 +31,27 @@ export const DatacenterView: React.FC = () => {
 
   const vpsList = player.vpsList || [];
 
-  // Calculate estimated total revenue per minute across all VPS
   const estimatedMinYield = vpsList.reduce((acc, v) => {
     if (v.activeModule === 'mining_rig') {
-      return acc + Math.round(v.cpuPower * v.moduleLevel * 30 + 50);
+      return acc + Math.round(v.cpuPower * v.moduleLevel * 8 + 10);
     } else if (v.activeModule === 'phishing_honeypot') {
-      return acc + Math.round((v.networkMbps / 15) * v.moduleLevel * 1.5 + 135);
+      return acc + Math.round((v.networkMbps / 100) * v.moduleLevel * 0.5 + 20);
     } else if (v.activeModule === 'botnet_amplifier') {
-      return acc + Math.round(v.cpuPower * v.moduleLevel * 20 + 80);
+      return acc + Math.round(v.cpuPower * v.moduleLevel * 5 + 15);
     }
     return acc;
   }, 0);
 
   const totalHistoricalGenerated = vpsList.reduce((acc, v) => acc + (v.passivelyGeneratedUsd || 0), 0);
 
+  const getUpgradeCost = (tier: string, moduleLevel: number) => {
+    if (moduleLevel >= 10) return null;
+    const baseCost = tier === 'micro' ? 2500 : tier === 'beast' ? 10000 : 40000;
+    return Math.round(baseCost * Math.pow(1.65, Math.max(0, moduleLevel - 1)));
+  };
+
   return (
     <div className="space-y-4 select-none">
-      {/* Header */}
       <div className="bg-white text-gray-900 rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -73,7 +70,6 @@ export const DatacenterView: React.FC = () => {
         </div>
       </div>
 
-      {/* 1-Minute Automated Revenue Collection Banner */}
       {vpsList.length > 0 && (
         <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-4 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
@@ -107,7 +103,6 @@ export const DatacenterView: React.FC = () => {
         </div>
       )}
 
-      {/* Rented VPS List */}
       <div className="space-y-3">
         <div className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1">
           Meus Servidores Virtuais Ativos ({vpsList.length}/6)
@@ -122,8 +117,8 @@ export const DatacenterView: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {vpsList.map(vps => {
-              const upgradeCost = vps.moduleLevel * 800 + 400;
-              const canAffordUpgrade = player.cash >= upgradeCost;
+              const upgradeCost = getUpgradeCost(vps.tier, vps.moduleLevel);
+              const canAffordUpgrade = upgradeCost !== null && player.cash >= upgradeCost;
 
               return (
                 <div
@@ -141,13 +136,11 @@ export const DatacenterView: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Specs */}
                     <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-100 text-xs font-mono text-gray-600">
                       <div>CPU: <strong className="text-gray-900">{vps.cpuPower} GHz</strong></div>
                       <div>Rede: <strong className="text-gray-900">{vps.networkMbps} Mbps</strong></div>
                     </div>
 
-                    {/* Module Selector */}
                     <div className="mt-4 space-y-1.5">
                       <div className="text-[10px] font-bold text-gray-400 uppercase">Módulo em Execução</div>
                       <div className="grid grid-cols-3 gap-1 text-[10px] font-semibold">
@@ -186,11 +179,10 @@ export const DatacenterView: React.FC = () => {
 
                     <div className="mt-3 bg-gray-50 p-2.5 rounded-xl text-xs font-mono flex items-center justify-between text-gray-600">
                       <span>Rendimento Gerado:</span>
-                      <strong className="text-emerald-600">+${vps.passivelyGeneratedUsd.toLocaleString()} USD</strong>
+                      <strong className="text-emerald-600">+${(vps.passivelyGeneratedUsd || 0).toLocaleString()} USD</strong>
                     </div>
                   </div>
 
-                  {/* Upgrade Module */}
                   <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
                     <div className="text-xs font-mono text-gray-500">
                       Módulo: <strong className="text-gray-900">Lvl {vps.moduleLevel}</strong>
@@ -198,7 +190,7 @@ export const DatacenterView: React.FC = () => {
 
                     <button
                       onClick={() => upgradeVpsModule(vps.id)}
-                      disabled={!canAffordUpgrade}
+                      disabled={upgradeCost === null || !canAffordUpgrade}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition flex items-center space-x-1 ${
                         canAffordUpgrade
                           ? 'bg-black hover:bg-gray-800 text-white'
@@ -206,7 +198,7 @@ export const DatacenterView: React.FC = () => {
                       }`}
                     >
                       <ArrowUpCircle className="w-3.5 h-3.5" />
-                      <span>Upgrade (${upgradeCost.toLocaleString()})</span>
+                      <span>{upgradeCost === null ? 'Nível Máximo' : `Upgrade ($${upgradeCost.toLocaleString()})`}</span>
                     </button>
                   </div>
                 </div>
@@ -216,7 +208,6 @@ export const DatacenterView: React.FC = () => {
         )}
       </div>
 
-      {/* Catalog: Rent New VPS */}
       <div className="space-y-3 pt-2">
         <div className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1">
           Catálogo de Servidores Cloud Dedicados
@@ -228,7 +219,7 @@ export const DatacenterView: React.FC = () => {
               tier: 'micro' as const,
               name: 'Instância Cloud Micro (Frankfurt)',
               location: 'Alemanha (DE)',
-              cost: 1200,
+              cost: 5000,
               cpuPower: 4.0,
               networkMbps: 500,
               desc: 'Servidor virtual em datacenter europeu de baixa latência.',
@@ -237,7 +228,7 @@ export const DatacenterView: React.FC = () => {
               tier: 'beast' as const,
               name: 'Servidor Dedicado Beast (Tóquio)',
               location: 'Japão (JP)',
-              cost: 4500,
+              cost: 25000,
               cpuPower: 8.0,
               networkMbps: 2000,
               desc: 'Hardware de alta densidade computacional com uplink de 2 Gbps.',
@@ -246,7 +237,7 @@ export const DatacenterView: React.FC = () => {
               tier: 'quantum' as const,
               name: 'Cluster Quântico Subterrâneo (Islândia)',
               location: 'Islândia (IS)',
-              cost: 14000,
+              cost: 100000,
               cpuPower: 20.0,
               networkMbps: 10000,
               desc: 'Cluster alimentado por energia geotérmica com infraestrutura militar.',
