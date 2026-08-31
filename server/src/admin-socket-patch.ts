@@ -55,13 +55,12 @@ socketPrototype.on = function patchedSocketOn(event: string, listener: (...args:
 // economy/reward logic in the transport layer.
 socketPrototype.onevent = function patchedSocketOnevent(packet: any) {
   const eventName = packet?.data?.[0];
+  const socket = this as any;
+  const payload = packet?.data?.[1] ?? {};
+  const userId = socket.data?.user?.userId;
+  const gameWorld = (globalThis as any).__hackerWarsGameWorld as GameWorld | undefined;
 
   if (eventName === 'open_lootbox') {
-    const socket = this as any;
-    const payload = packet?.data?.[1] ?? {};
-    const userId = socket.data?.user?.userId;
-    const gameWorld = (globalThis as any).__hackerWarsGameWorld as GameWorld | undefined;
-
     if (!userId || !gameWorld) {
       socket.emit('lootbox_result', {
         success: false,
@@ -89,8 +88,49 @@ socketPrototype.onevent = function patchedSocketOnevent(packet: any) {
     return;
   }
 
+  // The main router historically passed `currentUserId` to methods that only
+  // receive the target IP. Normalize those legacy packets here so the operation
+  // is performed against the connected target server rather than the user id.
+  if (eventName === 'wipe_remote_logs') {
+    if (!userId || !gameWorld) {
+      socket.emit('file_operation_result', { success: false, message: 'Servidor não está pronto.' });
+      return;
+    }
+
+    const targetIp = typeof payload.targetIp === 'string' ? payload.targetIp : typeof payload.ip === 'string' ? payload.ip : '';
+    if (!targetIp) {
+      socket.emit('file_operation_result', { success: false, message: 'Servidor alvo inválido.' });
+      return;
+    }
+
+    const result = gameWorld.wipeRemoteLogs(targetIp);
+    socket.emit('file_operation_result', {
+      ...result,
+      server: gameWorld.getServer(targetIp),
+    });
+    return;
+  }
+
+  if (eventName === 'edit_log') {
+    if (!userId || !gameWorld) {
+      socket.emit('log_edit_result', { success: false, message: 'Servidor não está pronto.' });
+      return;
+    }
+
+    const targetIp = typeof payload.targetIp === 'string' ? payload.targetIp : typeof payload.ip === 'string' ? payload.ip : '';
+    const logId = typeof payload.logId === 'string' ? payload.logId : '';
+    const newText = typeof payload.newText === 'string' ? payload.newText : '';
+    const result = gameWorld.editLogEntry(targetIp, logId, newText);
+    socket.emit('log_edit_result', {
+      ...result,
+      server: gameWorld.getServer(targetIp),
+    });
+    return;
+  }
+
   return originalOnevent.call(this, packet);
 };
 
 console.log('[security] admin_update_player payload normalizer loaded');
 console.log('[black-market] open_lootbox socket bridge loaded');
+console.log('[remote-files] log operation socket bridges loaded');
