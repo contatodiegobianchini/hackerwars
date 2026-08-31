@@ -61,7 +61,7 @@ export const Sidebar: React.FC = () => {
     }>;
   }> = [
     {
-      title: 'MEU SISTEMA',
+      title: 'SYSTEM',
       items: [
         { id: 'my_server', label: 'Meu Computador', icon: Server },
         { id: 'software', label: 'Meus Softwares', icon: FolderArchive, badge: softwareCount },
@@ -83,7 +83,7 @@ export const Sidebar: React.FC = () => {
       ]
     },
     {
-      title: 'INTERNET & INVASÕES',
+      title: 'NETWORK & OPERATIONS',
       items: [
         { id: 'dark_chat', label: 'DarkIRC Chat', icon: MessageSquare, badge: 'P2P', badgeColor: 'bg-emerald-600 text-white' },
         { id: 'campaign', label: 'Modo História', icon: BookOpen, badge: '10 CAPS' },
@@ -98,7 +98,7 @@ export const Sidebar: React.FC = () => {
       ]
     },
     {
-      title: 'FINANÇAS & EXPANSÃO',
+      title: 'ECONOMY & INFRASTRUCTURE',
       items: [
         { id: 'black_market', label: 'Black Market', icon: ShoppingBag, badge: 'LOOT' },
         { id: 'crypto', label: 'Cripto & Mineração', icon: Bitcoin },
@@ -108,7 +108,7 @@ export const Sidebar: React.FC = () => {
       ]
     },
     {
-      title: 'COMUNIDADE',
+      title: 'SOCIAL',
       items: [
         { id: 'leaderboard', label: 'Ranking & Notícias', icon: Trophy },
         { id: 'tutorial', label: 'Guia do Jogo', icon: HelpCircle },
