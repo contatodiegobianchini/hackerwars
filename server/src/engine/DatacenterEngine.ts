@@ -75,7 +75,7 @@ export class DatacenterEngine {
     if (!player.vpsList) return { success: false, message: 'Nenhum servidor VPS encontrado.' };
     const vps = player.vpsList.find(v => v.id === vpsId);
     if (!vps) return { success: false, message: 'VPS não encontrado.' };
-    if (vps.moduleLevel >= 10) return { success: false, message: 'Nível máximo do módulo atingido (10).' };
+    if (vps.moduleLevel >= 10) return { success: false, message: 'Este módulo já atingiu o nível máximo (10).' };
     const baseCost = vps.tier === 'micro' ? 2500 : vps.tier === 'beast' ? 10000 : 40000;
     const cost = Math.round(baseCost * Math.pow(1.65, vps.moduleLevel - 1));
     if (player.cash < cost) return { success: false, message: `Saldo insuficiente ($${cost.toLocaleString()} necessário para upgrade).` };
@@ -84,18 +84,18 @@ export class DatacenterEngine {
     return { success: true, message: `Módulo do VPS (${vps.ip}) atualizado para Nível ${vps.moduleLevel}!` };
   }
 
-  public setModule(player: Player, vpsId: string, moduleType: VpsModuleType): { success: boolean; message: string } {
+  public setModule(player: Player, vpsId: string, moduleType: VpsModuleType) {
     return this.setVpsModule(player, vpsId, moduleType);
   }
 
-  public upgradeModule(player: Player, vpsId: string): { success: boolean; message: string } {
+  public upgradeModule(player: Player, vpsId: string) {
     return this.upgradeVpsModule(player, vpsId);
   }
 
   public calculateMinuteYield(vps: PlayerVps): number {
-    if (vps.activeModule === 'mining_rig') return Math.round(vps.cpuPower * vps.moduleLevel * 30 + 50);
-    if (vps.activeModule === 'phishing_honeypot') return Math.round((vps.networkMbps / 15) * vps.moduleLevel * 1.5 + Math.random() * 150 + 60);
-    if (vps.activeModule === 'botnet_amplifier') return Math.round(vps.cpuPower * vps.moduleLevel * 20 + 80);
+    if (vps.activeModule === 'mining_rig') return Math.max(0, Math.round(vps.cpuPower * vps.moduleLevel * 8 + 10));
+    if (vps.activeModule === 'phishing_honeypot') return Math.max(0, Math.round((vps.networkMbps / 100) * vps.moduleLevel * 0.5 + Math.random() * 20 + 10));
+    if (vps.activeModule === 'botnet_amplifier') return Math.max(0, Math.round(vps.cpuPower * vps.moduleLevel * 5 + 15));
     return 0;
   }
 
