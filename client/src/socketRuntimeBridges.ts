@@ -28,6 +28,27 @@ function attachRuntimeBridges(socket: any) {
     useGameStore.setState({ activeTrace: null, activeConnection: null, currentView: 'my_server' });
   });
 
+  socket.on('proxy_chain_updated', (res: any) => {
+    const currentUserId = useGameStore.getState().currentUser?.id;
+    const currentPlayer = useGameStore.getState().player;
+
+    if (res?.player && currentUserId && res.player.id === currentUserId) {
+      useGameStore.setState({ player: res.player });
+    } else if (currentPlayer && Array.isArray(res?.activeProxyChain)) {
+      useGameStore.setState({
+        player: { ...currentPlayer, activeProxyChain: res.activeProxyChain },
+      });
+    }
+
+    if (res?.message) {
+      useGameStore.getState().addToast(
+        'Rota Proxy',
+        res.message,
+        res.success ? 'success' : 'danger',
+      );
+    }
+  });
+
   socket.on('file_operation_result', (res: any) => {
     const server = res?.server;
     if (!server) return;
