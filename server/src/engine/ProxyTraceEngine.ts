@@ -7,6 +7,20 @@ export class ProxyTraceEngine {
 
   public setSocketServer(io: SocketIOServer) {
     this.io = io;
+
+    // Tie the trace lifecycle to the player's authenticated socket.
+    // Explicit target disconnects and closed browser connections both stop it.
+    io.on('connection', (socket) => {
+      const stopForSocketUser = () => {
+        const userId = socket.data?.user?.userId;
+        if (typeof userId === 'string' && userId.length > 0) {
+          this.stopTrace(userId);
+        }
+      };
+
+      socket.on('disconnect_target', stopForSocketUser);
+      socket.on('disconnect', stopForSocketUser);
+    });
   }
 
   public isHighRiskTarget(target: VirtualServer): boolean {
@@ -24,7 +38,6 @@ export class ProxyTraceEngine {
 
     if (!this.isHighRiskTarget(target)) return null;
 
-    // Base trace time: 40s. Each proxy hop adds +18s. VPN plan adds vpnDelaySec (+25s, +60s, +120s, +240s)!
     const totalSeconds = 40 + (proxyHops.length * 18) + vpnDelaySec;
     let secondsRemaining = totalSeconds;
 
@@ -52,7 +65,8 @@ export class ProxyTraceEngine {
       else state.dangerLevel = 'CRITICAL';
 
       if (this.io) {
-        this.io.emit('police_trace_tick', { userId, state });
+        // Clone state so clients receive an immutable snapshot for each tick.
+        this.io.emit('police_trace_tick', { userId, state: { ...state } });
       }
 
       if (secondsRemaining <= 0) {
@@ -64,7 +78,7 @@ export class ProxyTraceEngine {
     this.activeTraces.set(userId, { timer, state });
 
     if (this.io) {
-      this.io.emit('police_trace_start', { userId, state });
+      this.io.emit('police_trace_start', { userId, state: { ...state } });
     }
 
     return state;
