@@ -69,33 +69,33 @@ export class BlackMarketEngine {
   private generateSoftwareReward(rarity: ItemRarity): LootboxReward {
     const toolTypes: SoftwareType[] = ['cracker', 'hasher', 'firewall', 'miner', 'ddos', 'portscan'];
     const chosenType = toolTypes[Math.floor(Math.random() * toolTypes.length)];
-    let version = 1.2;
+    let version = 1.0;
     let namePrefix = 'CrackMaster';
     let sizeMb = 20;
 
     switch (rarity) {
       case 'common':
-        version = Number((Math.random() * 2.0 + 1.5).toFixed(1));
+        version = Number((Math.random() * 1.0 + 1.0).toFixed(1)); // v1.0 - v2.0
         namePrefix = chosenType === 'cracker' ? 'CrackMaster' : chosenType === 'hasher' ? 'SecureHash' : chosenType === 'miner' ? 'CryptoMinerX' : chosenType === 'ddos' ? 'StormBotNet' : 'AegisWall';
         sizeMb = Math.round(version * 6 + 10);
         break;
       case 'uncommon':
-        version = Number((Math.random() * 3.0 + 4.0).toFixed(1));
+        version = Number((Math.random() * 1.5 + 2.0).toFixed(1)); // v2.0 - v3.5
         namePrefix = chosenType === 'cracker' ? 'ShadowCracker' : chosenType === 'hasher' ? 'CipherVault' : chosenType === 'miner' ? 'DarkMiner' : chosenType === 'ddos' ? 'MiraiCannon' : 'IronShield';
         sizeMb = Math.round(version * 5 + 15);
         break;
       case 'rare':
-        version = Number((Math.random() * 6.0 + 8.0).toFixed(1));
+        version = Number((Math.random() * 3.0 + 4.0).toFixed(1)); // v4.0 - v7.0
         namePrefix = chosenType === 'cracker' ? 'VortexCracker' : chosenType === 'hasher' ? 'QuantumHash' : chosenType === 'miner' ? 'NanoMiner' : chosenType === 'ddos' ? 'TsunamiBotNet' : 'AegisTitan';
         sizeMb = Math.round(version * 4 + 20);
         break;
       case 'epic':
-        version = Number((Math.random() * 8.0 + 16.0).toFixed(1));
+        version = Number((Math.random() * 4.0 + 7.0).toFixed(1)); // v7.0 - v11.0
         namePrefix = chosenType === 'cracker' ? 'ZeroDay_Titan_Mil' : chosenType === 'hasher' ? 'BlackHole_Crypt' : chosenType === 'miner' ? 'QuantumRig' : chosenType === 'ddos' ? 'OrbitalStrike' : 'GodShield';
         sizeMb = Math.round(version * 3.5 + 25);
         break;
       case 'legendary':
-        version = Number((Math.random() * 10.0 + 30.0).toFixed(1));
+        version = Number((Math.random() * 5.0 + 12.0).toFixed(1)); // v12.0 - v17.0
         namePrefix = chosenType === 'cracker' ? 'TITAN_EXPLOIT_GODMODE' : chosenType === 'hasher' ? 'HYPER_QUANTUM_ENCRYPTOR' : chosenType === 'miner' ? 'SKYNET_CLUSTER_MINER' : chosenType === 'ddos' ? 'EXTINCTION_BOTNET' : 'IMPENETRABLE_FORTRESS';
         sizeMb = Math.round(version * 3 + 30);
         break;
