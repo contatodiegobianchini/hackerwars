@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/secure-server.ts",
     "build": "tsc",
-    "start": "node --import ./dist/admin-socket-patch.js --import ./dist/proxy-chain-patch.js --import ./dist/spyware-balance-patch.js dist/secure-server.js"
+    "start": "node --import ./dist/admin-socket-patch.js --import ./dist/proxy-chain-patch.js --import ./dist/spyware-balance-patch.js --import ./dist/player-persistence-patch.js dist/secure-server.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
