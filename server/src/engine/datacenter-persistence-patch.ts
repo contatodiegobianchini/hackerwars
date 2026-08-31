@@ -14,7 +14,7 @@ if (!datacenterProto.__elapsedYieldPatchInstalled) {
     const vpsYields: { vpsId: string; name: string; amount: number }[] = [];
 
     for (const vps of player.vpsList) {
-      let lastYieldAt = Number(vps.lastYieldAt || 0);
+      const lastYieldAt = Number(vps.lastYieldAt || 0);
       if (!Number.isFinite(lastYieldAt) || lastYieldAt <= 0) {
         vps.lastYieldAt = now;
         continue;
@@ -41,6 +41,13 @@ if (!datacenterProto.__elapsedYieldPatchInstalled) {
     return { totalCollected, vpsYields };
   };
 
+  const originalRentVps = datacenterProto.rentVps;
+  datacenterProto.rentVps = function patchedRentVps(player: any, tier: any) {
+    const result = originalRentVps.call(this, player, tier);
+    if (result?.success && result.vps) result.vps.lastYieldAt = Date.now();
+    return result;
+  };
+
   datacenterProto.__elapsedYieldPatchInstalled = true;
 }
 
@@ -51,10 +58,11 @@ if (!worldProto.__datacenterPersistencePatchInstalled) {
 
   worldProto.getOrCreatePlayer = function patchedGetOrCreatePlayer(userId: string) {
     const player = originalGetOrCreatePlayer.call(this, userId);
+    const beforeSnapshots = (player.vpsList || []).map((v: any) => `${v.id}:${v.lastYieldAt || 0}:${v.passivelyGeneratedUsd || 0}`);
     const result = datacenter.collectAutomaticMinuteYield(player);
-    const hasInitializedClock = (player.vpsList || []).some((v: any) => Number(v.lastYieldAt || 0) > 0);
+    const afterSnapshots = (player.vpsList || []).map((v: any) => `${v.id}:${v.lastYieldAt || 0}:${v.passivelyGeneratedUsd || 0}`);
 
-    if (result.totalCollected > 0 || hasInitializedClock) {
+    if (result.totalCollected > 0 || JSON.stringify(beforeSnapshots) !== JSON.stringify(afterSnapshots)) {
       if (player.bankAccounts?.length) player.bankAccounts[0].balance = player.cash;
       originalSavePlayerState.call(this, userId);
     }
