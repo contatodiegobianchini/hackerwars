@@ -6,7 +6,7 @@ export const VPS_CATALOG = [
     tier: 'micro' as const,
     name: 'Instância Cloud Micro (Frankfurt)',
     location: 'Alemanha (DE)',
-    cost: 1200,
+    cost: 5000,
     cpuPower: 4.0,
     networkMbps: 500,
     desc: 'Servidor virtual em datacenter europeu de baixa latência. Ideal para mineração inicial ou amplificador leve.',
@@ -15,7 +15,7 @@ export const VPS_CATALOG = [
     tier: 'beast' as const,
     name: 'Servidor Dedicado Beast (Tóquio)',
     location: 'Japão (JP)',
-    cost: 4500,
+    cost: 25000,
     cpuPower: 8.0,
     networkMbps: 2000,
     desc: 'Hardware de alta densidade computacional com uplink de 2 Gbps. Gera altos volumes de phishing e mineração.',
@@ -24,7 +24,7 @@ export const VPS_CATALOG = [
     tier: 'quantum' as const,
     name: 'Cluster Quântico Subterrâneo (Islândia)',
     location: 'Islândia (IS)',
-    cost: 14000,
+    cost: 100000,
     cpuPower: 20.0,
     networkMbps: 10000,
     desc: 'Cluster alimentado por energia geotérmica com infraestrutura militar e link laser de 10 Gbps.',
@@ -82,7 +82,6 @@ export class DatacenterEngine {
     return { success: true, message: `Módulo do VPS (${vps.ip}) atualizado para Nível ${vps.moduleLevel}!` };
   }
 
-  // Compatibility aliases used by the current Socket.IO handlers.
   public setModule(player: Player, vpsId: string, moduleType: VpsModuleType): { success: boolean; message: string } {
     return this.setVpsModule(player, vpsId, moduleType);
   }
@@ -107,8 +106,8 @@ export class DatacenterEngine {
       if (amount > 0) {
         player.cash += amount;
         vps.passivelyGeneratedUsd = (vps.passivelyGeneratedUsd || 0) + amount;
-        totalCollected += amount;
         vpsYields.push({ vpsId: vps.id, name: vps.name, amount });
+        totalCollected += amount;
       }
     }
     return { totalCollected, vpsYields };
