@@ -75,7 +75,9 @@ export class DatacenterEngine {
     if (!player.vpsList) return { success: false, message: 'Nenhum servidor VPS encontrado.' };
     const vps = player.vpsList.find(v => v.id === vpsId);
     if (!vps) return { success: false, message: 'VPS não encontrado.' };
-    const cost = vps.moduleLevel * 800 + 400;
+    if (vps.moduleLevel >= 10) return { success: false, message: 'Nível máximo do módulo atingido (10).' };
+    const baseCost = vps.tier === 'micro' ? 2500 : vps.tier === 'beast' ? 10000 : 40000;
+    const cost = Math.round(baseCost * Math.pow(1.65, vps.moduleLevel - 1));
     if (player.cash < cost) return { success: false, message: `Saldo insuficiente ($${cost.toLocaleString()} necessário para upgrade).` };
     player.cash -= cost;
     vps.moduleLevel += 1;
@@ -106,8 +108,8 @@ export class DatacenterEngine {
       if (amount > 0) {
         player.cash += amount;
         vps.passivelyGeneratedUsd = (vps.passivelyGeneratedUsd || 0) + amount;
-        vpsYields.push({ vpsId: vps.id, name: vps.name, amount });
         totalCollected += amount;
+        vpsYields.push({ vpsId: vps.id, name: vps.name, amount });
       }
     }
     return { totalCollected, vpsYields };
