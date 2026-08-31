@@ -100,12 +100,106 @@
 }
 
 .app-shell main[data-view] {
+  --signal: #35b96d;
+  --signal-soft: #e1f2e6;
+  --signal-ink: #116237;
   background-color: #101310 !important;
   background-image:
     linear-gradient(rgba(118, 137, 122, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(118, 137, 122, 0.035) 1px, transparent 1px),
     radial-gradient(circle at 86% -5%, rgba(42, 185, 102, 0.075), transparent 30%) !important;
   background-size: 32px 32px, 32px 32px, auto !important;
+}
+
+/* Shared workspace treatment. Individual screens keep their content and color
+   cues, but no longer read as a collection of unrelated Tailwind cards. */
+.app-shell main[data-view="software"],
+.app-shell main[data-view="processes"],
+.app-shell main[data-view="hardware"] { --signal: #4f8cff; --signal-soft: #e7efff; --signal-ink: #285ebc; }
+.app-shell main[data-view="known_servers"],
+.app-shell main[data-view="target_server"] { --signal: #20a6bd; --signal-soft: #e0f5f7; --signal-ink: #167487; }
+.app-shell main[data-view="missions"],
+.app-shell main[data-view="campaign"] { --signal: #7c65e8; --signal-soft: #ece9ff; --signal-ink: #5840be; }
+.app-shell main[data-view="black_market"],
+.app-shell main[data-view="bank"],
+.app-shell main[data-view="crypto"] { --signal: #c58a25; --signal-soft: #faf0db; --signal-ink: #8b5b09; }
+.app-shell main[data-view="clans"] { --signal: #d36b3f; --signal-soft: #fae9e1; --signal-ink: #9f4725; }
+.app-shell main[data-view="antivirus"],
+.app-shell main[data-view="admin_panel"] { --signal: #d25050; --signal-soft: #fae4e4; --signal-ink: #9c3030; }
+
+.app-shell main[data-view] .bg-white {
+  background: #f4f6f1;
+  border-color: #d3dad2;
+  border-radius: 5px !important;
+  box-shadow: 0 1px 0 rgba(11, 28, 16, 0.10), 0 8px 22px rgba(0, 0, 0, 0.08) !important;
+}
+
+.app-shell main[data-view] .bg-gray-50 {
+  background: #e9eee8;
+  border-color: #d4ddd3;
+}
+
+.app-shell main[data-view] .bg-gray-100 { background: #e2e8e1; }
+.app-shell main[data-view] .rounded-xl { border-radius: 4px !important; }
+.app-shell main[data-view] .rounded-lg { border-radius: 3px !important; }
+.app-shell main[data-view] .rounded-3xl { border-radius: 6px !important; }
+.app-shell main[data-view] h1 {
+  letter-spacing: -0.025em;
+}
+
+.app-shell main[data-view] h1:not(.font-mono) {
+  font-size: 0.94rem;
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+}
+
+.app-shell main[data-view] input,
+.app-shell main[data-view] select,
+.app-shell main[data-view] textarea {
+  background: #edf1ec;
+  border-color: #cbd5ca;
+  border-radius: 3px !important;
+}
+
+.app-shell main[data-view] input:focus,
+.app-shell main[data-view] select:focus,
+.app-shell main[data-view] textarea:focus {
+  border-color: var(--signal) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--signal) 16%, transparent);
+}
+
+.app-shell main[data-view] .bg-black.text-white {
+  background: #183c27;
+  border-radius: 3px !important;
+  box-shadow: 3px 3px 0 rgba(11, 43, 24, 0.20) !important;
+}
+
+.app-shell main[data-view] .bg-black.text-white:hover { background: #215638; }
+.app-shell main[data-view] .text-emerald-600 { color: var(--signal-ink); }
+.app-shell main[data-view] .bg-emerald-50 { background: var(--signal-soft); }
+
+/* Let each area announce itself with a short, utilitarian status mark. */
+.app-shell main[data-view] > div > .bg-white:first-child,
+.app-shell main[data-view] > div > .bg-gradient-to-r:first-child {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-shell main[data-view] > div > .bg-white:first-child::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 52px;
+  height: 3px;
+  background: var(--signal);
+}
+
+.app-shell main[data-view="dark_chat"] > div > .bg-gradient-to-r:first-child,
+.app-shell main[data-view="campaign"] > div > .bg-gradient-to-r:first-child,
+.app-shell main[data-view="admin_panel"] > div > .bg-gradient-to-r:first-child {
+  border-left: 3px solid var(--signal);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22) !important;
 }
 
 main[data-view="my_server"] {
