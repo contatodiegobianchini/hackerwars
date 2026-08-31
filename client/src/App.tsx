@@ -96,38 +96,23 @@ export const App: React.FC = () => {
 
   return (
     <div className="h-screen w-screen bg-[#0a0a0a] text-slate-200 flex flex-col overflow-hidden font-sans select-none">
-      {/* Top Navigation Header */}
       <Header />
 
-      {/* Main Container: Sidebar + Content Area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar (Desktop + Mobile Drawer) */}
         <Sidebar />
 
-        {/* Central View Content */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 bg-[#0a0a0a]">
+        <main data-view={currentView} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 bg-[#0a0a0a]">
           <div className="max-w-6xl mx-auto pb-24 md:pb-16">
             {renderCurrentView()}
           </div>
         </main>
       </div>
 
-      {/* Mobile Bottom Quick Navigation Bar */}
       <MobileBottomNav />
-
-      {/* Global Real-time Notifications */}
       <ToastNotifications />
-
-      {/* Bottom Floating Live Task Progress Indicator */}
       <TaskProgressPopup />
-
-      {/* Interactive Collapsible Hacker Terminal Console */}
       <HackerTerminalDrawer />
-
-      {/* Cartel Jumpscare Video & 5-Minute Lockdown ("Na Encolha") */}
       <CartelLockdownOverlay />
-
-      {/* Police & FBI Raid Emergency Alert */}
       <PoliceRaidAlert />
     </div>
   );
