@@ -13,7 +13,8 @@ gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTi
       if (!server.activeSpyware || server.activeSpyware.length === 0) continue;
 
       for (const implant of server.activeSpyware) {
-        const owner = Array.from(this.players.values()).find((p: any) => p.player.id === implant.ownerId);
+        const playerEntries = Array.from((this.players as Map<string, any>).values()) as any[];
+        const owner: any = playerEntries.find((p: any) => p?.player?.id === implant.ownerId);
         if (!owner) continue;
 
         const roll = Math.random();
@@ -84,10 +85,10 @@ gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTi
 // Clamp automatic/legacy bank findings so old oversized discoveries cannot bypass the rebalance.
 const originalPlantSpyware = gameWorldPrototype.plantSpyware;
 gameWorldPrototype.plantSpyware = function balancedPlantSpyware(userId: string, targetIp: string) {
-  const result = originalPlantSpyware.call(this, userId, targetIp);
+  const result: any = originalPlantSpyware.call(this, userId, targetIp);
   if (result?.success && result.server?.activeSpyware) {
-    const player = this.getPlayer(userId);
-    const implant = result.server.activeSpyware.find((item: any) => item.ownerId === player.id);
+    const player: any = this.getPlayer(userId);
+    const implant: any = result.server.activeSpyware.find((item: any) => item.ownerId === player.id);
     if (implant) {
       if (implant.discoveredAccounts) {
         for (const account of implant.discoveredAccounts) {
@@ -109,12 +110,12 @@ gameWorldPrototype.plantSpyware = function balancedPlantSpyware(userId: string, 
 // Cap payouts from old discoveries as well as newly generated ones.
 const originalSiphonAccount = gameWorldPrototype.siphonVictimAccount;
 gameWorldPrototype.siphonVictimAccount = function balancedSiphonAccount(userId: string, targetIp: string, accountNumber: string) {
-  const result = originalSiphonAccount.call(this, userId, targetIp, accountNumber);
+  const result: any = originalSiphonAccount.call(this, userId, targetIp, accountNumber);
   if (result?.success && typeof result.amount === 'number') {
     const ceiling = BANK_PAYOUT_CAP;
     const excess = result.amount - ceiling;
     if (excess > 0) {
-      const player = this.getPlayer(userId);
+      const player: any = this.getPlayer(userId);
       player.cash = Math.max(0, player.cash - excess);
       player.reputation = Math.max(0, player.reputation - 120);
       if (player.bankAccounts?.length) player.bankAccounts[0].balance = player.cash;
@@ -128,12 +129,12 @@ gameWorldPrototype.siphonVictimAccount = function balancedSiphonAccount(userId: 
 
 const originalSiphonCrypto = gameWorldPrototype.siphonVictimCrypto;
 gameWorldPrototype.siphonVictimCrypto = function balancedSiphonCrypto(userId: string, targetIp: string, address: string) {
-  const result = originalSiphonCrypto.call(this, userId, targetIp, address);
+  const result: any = originalSiphonCrypto.call(this, userId, targetIp, address);
   if (result?.success && typeof result.amount === 'number') {
     const ceiling = BTC_PAYOUT_CAP;
     const excess = Number((result.amount - ceiling).toFixed(6));
     if (excess > 0) {
-      const player = this.getPlayer(userId);
+      const player: any = this.getPlayer(userId);
       player.cryptoWallet.btc = Number(Math.max(0, (player.cryptoWallet.btc || 0) - excess).toFixed(6));
       player.crypto = player.cryptoWallet.btc;
       player.reputation = Math.max(0, player.reputation - Math.round(excess * 800));
@@ -145,4 +146,4 @@ gameWorldPrototype.siphonVictimCrypto = function balancedSiphonCrypto(userId: st
   return result;
 };
 
-console.log('[balance] spyware/keylogger income rebalance v2 loaded');
+console.log('[balance] spyware/keylogger income rebalance v3 loaded');
