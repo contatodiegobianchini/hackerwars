@@ -102,7 +102,6 @@ setInterval(() => {
   });
 }, 3000);
 
-// --- Socket.IO Game Events ---
 io.on('connection', (socket) => {
   const currentUserId = socket.data?.user?.userId || '';
   if (!currentUserId) return socket.disconnect(true);
@@ -281,21 +280,18 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submit_story_choice', ({ chapterId, choiceId }) => {
-    const player = gameWorld.getPlayer(currentUserId);
-    const result = gameWorld.submitStoryChoice(player, chapterId, choiceId);
+    const result = gameWorld.submitStoryChoice(currentUserId, chapterId, choiceId);
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('story_choice_result', { ...result, player: gameWorld.getPlayer(currentUserId), storyChapters: gameWorld.getStoryChapters(currentUserId), darkChatChannels: gameWorld.getDarkChatChannels() });
   });
   socket.on('set_faction_alignment', ({ faction }) => {
-    const player = gameWorld.getPlayer(currentUserId);
-    const result = gameWorld.setFactionAlignment(player, faction);
+    const result = gameWorld.setFactionAlignment(currentUserId, faction);
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('faction_alignment_result', { ...result, player: gameWorld.getPlayer(currentUserId), darkChatChannels: gameWorld.getDarkChatChannels() });
   });
 
   socket.on('send_dark_chat_message', ({ channelId, text }) => {
-    const player = gameWorld.getPlayer(currentUserId);
-    const result = gameWorld.sendDarkChatMessage(player, channelId, text);
+    const result = gameWorld.sendDarkChatMessage(currentUserId, channelId, text);
     socket.emit('dark_chat_message_sent', { ...result, channels: gameWorld.getDarkChatChannels() });
     if (result.success) {
       socket.broadcast.emit('dark_chat_message_received', { message: result.message, channels: gameWorld.getDarkChatChannels() });
@@ -303,20 +299,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('open_lootbox', ({ crateId, paymentMethod }) => {
-    const player = gameWorld.getPlayer(currentUserId);
-    const result = gameWorld.blackMarketEngine.openLootbox(player, crateId, paymentMethod);
+    const result = gameWorld.openLootbox(currentUserId, crateId, paymentMethod);
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('lootbox_result', { ...result, player: gameWorld.getPlayer(currentUserId) });
   });
   socket.on('trade_crypto', ({ coinId, action, usdAmount, coinAmount }) => {
-    const player = gameWorld.getPlayer(currentUserId);
-    const result = gameWorld.cryptoEngine.trade(player, coinId, action, usdAmount, coinAmount);
+    const result = gameWorld.tradeCoin(currentUserId, coinId, action, usdAmount, coinAmount);
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('crypto_result', { ...result, player: gameWorld.getPlayer(currentUserId), cryptoState: gameWorld.cryptoEngine.getState() });
   });
   socket.on('set_mining_coin', ({ coinId }) => {
-    const player = gameWorld.getPlayer(currentUserId);
-    const result = gameWorld.cryptoEngine.setMiningCoin(player, coinId);
+    const result = gameWorld.setMiningCoin(currentUserId, coinId);
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('mining_coin_updated', { ...result, player: gameWorld.getPlayer(currentUserId) });
   });
@@ -336,14 +329,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('accept_mission', ({ missionId }) => {
-    const player = gameWorld.getPlayer(currentUserId);
-    const result = gameWorld.missionEngine.acceptMission(player, missionId);
+    const result = gameWorld.missionEngine.acceptMission(gameWorld.getPlayer(currentUserId), missionId);
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('mission_accepted', { ...result, player: gameWorld.getPlayer(currentUserId), missions: gameWorld.missionEngine.getPlayerMissions(currentUserId) });
   });
   socket.on('claim_mission', ({ missionId }) => {
-    const player = gameWorld.getPlayer(currentUserId);
-    const result = gameWorld.missionEngine.claimMission(player, missionId);
+    const result = gameWorld.missionEngine.claimMission(gameWorld.getPlayer(currentUserId), missionId);
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('mission_claimed', { ...result, player: gameWorld.getPlayer(currentUserId), missions: gameWorld.missionEngine.getPlayerMissions(currentUserId) });
   });
@@ -381,37 +372,35 @@ io.on('connection', (socket) => {
     socket.emit('bank_result', { ...result, player: gameWorld.getPlayer(currentUserId), server: gameWorld.getServer(bankIp) });
   });
   socket.on('connect_target', ({ ip }) => {
-    const result = gameWorld.connectToTarget(currentUserId, ip);
+    const result = gameWorld.connectToServer(currentUserId, ip);
     socket.emit('target_connected', { ...result, player: gameWorld.getPlayer(currentUserId), traceState: gameWorld.proxyTraceEngine.getTraceState(currentUserId) });
   });
   socket.on('disconnect_target', () => {
     socket.emit('target_disconnected', { success: true });
   });
 
-  // Admin
   socket.on('admin_get_users', () => {
-    const player = gameWorld.getPlayer(currentUserId);
     if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_users_list', { success: false, message: 'Acesso negado.' });
     socket.emit('admin_users_list', { success: true, users: dbHelpers.getAllUsersForAdmin() });
   });
   socket.on('admin_update_player', ({ targetUserId, updates }) => {
     if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
-    const result = gameWorld.adminUpdatePlayer(targetUserId, updates);
-    socket.emit('admin_action_result', { ...result, player: gameWorld.getPlayer(targetUserId) });
+    const result = gameWorld.adminUpdatePlayer(currentUserId, targetUserId, updates);
+    socket.emit('admin_action_result', { ...result, targetPlayer: result.player });
   });
   socket.on('admin_reset_password', ({ targetUserId, newPassword }) => {
     if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
-    const result = gameWorld.adminResetPassword(targetUserId, newPassword);
+    const result = gameWorld.adminResetPassword(currentUserId, targetUserId, newPassword);
     socket.emit('admin_action_result', result);
   });
   socket.on('admin_set_ban', ({ targetUserId, isBanned, reason }) => {
     if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
-    const result = gameWorld.adminSetBan(targetUserId, isBanned, reason);
+    const result = gameWorld.adminSetBan(currentUserId, targetUserId, isBanned, reason);
     socket.emit('admin_action_result', result);
   });
   socket.on('admin_delete_user', ({ targetUserId }) => {
     if (!gameWorld.verifyIsAdmin(currentUserId)) return socket.emit('admin_action_result', { success: false, message: 'Acesso negado.' });
-    const result = gameWorld.adminDeleteUser(targetUserId);
+    const result = gameWorld.adminDeleteUser(currentUserId, targetUserId);
     socket.emit('admin_action_result', result);
   });
   socket.on('admin_broadcast_news', ({ headline, category }) => {
