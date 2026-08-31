@@ -1,5 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm ci && npm --prefix client ci && npm --prefix server ci",
+  "buildCommand": "npm run build:vercel",
   "outputDirectory": "client/dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://hackerwars-api.onrender.com/api/:path*" }
