@@ -57,6 +57,7 @@ export class DatacenterEngine {
       activeModule: 'mining_rig',
       moduleLevel: 1,
       passivelyGeneratedUsd: 0,
+      ...({ lastYieldAt: Date.now() } as any),
     };
     player.vpsList.push(vps);
     return { success: true, vps, message: `VPS "${spec.name}" (${randomIp}) ativado no Datacenter com sucesso!` };
@@ -79,6 +80,15 @@ export class DatacenterEngine {
     player.cash -= cost;
     vps.moduleLevel += 1;
     return { success: true, message: `Módulo do VPS (${vps.ip}) atualizado para Nível ${vps.moduleLevel}!` };
+  }
+
+  // Compatibility aliases used by the current Socket.IO handlers.
+  public setModule(player: Player, vpsId: string, moduleType: VpsModuleType): { success: boolean; message: string } {
+    return this.setVpsModule(player, vpsId, moduleType);
+  }
+
+  public upgradeModule(player: Player, vpsId: string): { success: boolean; message: string } {
+    return this.upgradeVpsModule(player, vpsId);
   }
 
   public calculateMinuteYield(vps: PlayerVps): number {
