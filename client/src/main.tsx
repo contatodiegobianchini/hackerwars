@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+import './zoneThemes.css';
 import './socketRuntimeBridges.js';
 import './vpsRuntimeBridge.js';
 
