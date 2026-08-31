@@ -17,7 +17,6 @@ const attachVpsListener = () => {
   attachedSocket = socket;
 
   socket.on('vps_action_result', (payload: VpsPayload) => {
-    const state = useGameStore.getState();
     if (payload.player) useGameStore.setState({ player: payload.player });
     useGameStore.getState().addToast(
       payload.success ? 'Datacenter Cloud' : 'Falha no Datacenter',
