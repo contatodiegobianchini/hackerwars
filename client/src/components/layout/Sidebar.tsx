@@ -164,7 +164,7 @@ export const Sidebar: React.FC = () => {
                     }`}
                   >
                     <div className="flex items-center space-x-2.5 min-w-0">
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-gray-500'}`} />
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-emerald-300' : 'text-gray-500'}`} />
                       <span className="truncate">{item.label}</span>
                     </div>
 

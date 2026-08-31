@@ -95,13 +95,13 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#0a0a0a] text-slate-200 flex flex-col overflow-hidden font-sans select-none">
+    <div className="app-shell h-screen w-screen text-slate-200 flex flex-col overflow-hidden font-sans select-none">
       <Header />
 
       <div className="flex-1 flex overflow-hidden">
         <Sidebar />
 
-        <main data-view={currentView} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 bg-[#0a0a0a]">
+        <main data-view={currentView} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
           <div className="max-w-6xl mx-auto pb-24 md:pb-16">
             {renderCurrentView()}
           </div>

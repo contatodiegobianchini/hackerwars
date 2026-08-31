@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../stores/useGameStore.js';
-import { Shield, Lock, User, ArrowRight, Sparkles, Terminal } from 'lucide-react';
+import { Shield, Lock, User, ArrowRight, Sparkles, Terminal, Radio } from 'lucide-react';
 
 export const AuthModal: React.FC = () => {
   const { login, register } = useGameStore();
@@ -40,31 +40,32 @@ export const AuthModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-[#0a0a0a] flex items-center justify-center p-4 z-50 select-none">
-      <div className="bg-white text-gray-900 rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100 relative overflow-hidden">
-        {/* Decorative subtle header badge */}
-        <div className="flex flex-col items-center text-center space-y-3 mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center text-white shadow-md">
-            <Shield className="w-7 h-7 fill-white text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-gray-900 uppercase font-sans">
-              HACKER EXPERIENCE
-            </h1>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Simulador de Invasão & Estratégia em Rede
-            </p>
-          </div>
+    <div className="auth-screen fixed inset-0 flex items-center justify-center p-4 z-50 select-none">
+      <div className="auth-panel text-gray-900 max-w-md w-full shadow-2xl relative overflow-hidden">
+        <div className="auth-topline flex items-center justify-between px-6 py-3 text-[10px] font-mono tracking-[0.14em]">
+          <span className="flex items-center gap-1.5"><Radio className="w-3 h-3" /> REDE PÚBLICA</span>
+          <span>NODE 01 / BR</span>
         </div>
+        <div className="p-6 sm:p-8">
+          <div className="flex items-start justify-between mb-7">
+            <div>
+              <div className="flex items-center gap-2 text-[10px] font-mono text-emerald-700 font-bold tracking-[0.16em] mb-2"><span className="w-1.5 h-1.5 bg-emerald-600 inline-block" /> SISTEMA ONLINE</div>
+              <h1 className="text-2xl font-black tracking-[-0.06em] text-gray-950 uppercase leading-none">Hacker<br />Wars</h1>
+              <p className="text-xs text-gray-500 mt-2">Acesso à rede clandestina.</p>
+            </div>
+            <div className="w-11 h-11 bg-[#132218] flex items-center justify-center text-emerald-300 border border-emerald-700/50">
+              <Shield className="w-5 h-5 fill-emerald-300 text-emerald-300" />
+            </div>
+          </div>
 
         {/* Mode Selector */}
-        <div className="flex bg-gray-100 p-1 rounded-2xl mb-6 text-xs font-semibold">
+        <div className="flex auth-mode p-1 mb-6 text-xs font-semibold">
           <button
             type="button"
             onClick={() => { setMode('login'); setError(null); }}
             className={`flex-1 py-2 rounded-xl transition ${
               mode === 'login'
-                ? 'bg-white text-gray-900 shadow-sm font-bold'
+                ? 'bg-white text-gray-950 shadow-sm font-bold'
                 : 'text-gray-500 hover:text-gray-900'
             }`}
           >
@@ -75,7 +76,7 @@ export const AuthModal: React.FC = () => {
             onClick={() => { setMode('register'); setError(null); }}
             className={`flex-1 py-2 rounded-xl transition ${
               mode === 'register'
-                ? 'bg-white text-gray-900 shadow-sm font-bold'
+                ? 'bg-white text-gray-950 shadow-sm font-bold'
                 : 'text-gray-500 hover:text-gray-900'
             }`}
           >
@@ -129,7 +130,7 @@ export const AuthModal: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-black hover:bg-gray-800 text-white font-semibold text-xs py-3 rounded-xl shadow-md transition flex items-center justify-center space-x-2 mt-2"
+            className="w-full auth-submit hover:bg-emerald-900 text-white font-semibold text-xs py-3 transition flex items-center justify-center space-x-2 mt-2"
           >
             <span>{loading ? 'Processando...' : mode === 'login' ? 'Conectar ao Terminal' : 'Registrar Nova Conta'}</span>
             <ArrowRight className="w-4 h-4" />
@@ -137,7 +138,7 @@ export const AuthModal: React.FC = () => {
         </form>
 
         {/* Quick Demo Button */}
-        <div className="mt-6 pt-4 border-t border-gray-100 text-center">
+        <div className="mt-6 pt-4 border-t border-gray-200 text-center">
           <button
             type="button"
             onClick={handleDemoLogin}
@@ -147,6 +148,7 @@ export const AuthModal: React.FC = () => {
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
             <span>Entrar rápido com conta de teste (zero_cool)</span>
           </button>
+        </div>
         </div>
       </div>
     </div>
