@@ -54,7 +54,7 @@ export const Header: React.FC = () => {
         {/* Brand Logo */}
         <div
           onClick={() => setCurrentView('my_server')}
-          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white flex items-center justify-center text-black cursor-pointer shadow-sm shrink-0"
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-300 flex items-center justify-center text-[#102418] cursor-pointer shadow-sm shrink-0 border border-emerald-100"
         >
           <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-black text-black" />
         </div>
@@ -64,10 +64,10 @@ export const Header: React.FC = () => {
           className="cursor-pointer leading-tight"
         >
           <div className="font-bold text-[11px] sm:text-xs tracking-wider text-white uppercase truncate">
-            HACKER EXP
+            HACKER WARS
           </div>
           <div className="hidden sm:block text-[10px] sm:text-[11px] text-gray-400">
-            Simulador de Invasão
+            REDE CLANDESTINA
           </div>
         </div>
 
