@@ -10,7 +10,10 @@ import { ProcessEngine } from './engine/ProcessEngine.js';
 import { VPS_CATALOG } from './engine/DatacenterEngine.js';
 import { initializeSupabaseDb, dbHelpers } from './database/supabase.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'hacker-wars-secret-key-2026';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET must be configured and contain at least 32 characters.');
+}
 const ADMIN_USERNAME = 'diegodev';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
