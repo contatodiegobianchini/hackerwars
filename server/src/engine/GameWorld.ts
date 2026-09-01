@@ -886,6 +886,11 @@ export class GameWorld {
     amount: number,
     bankIp: string
   ): { success: boolean; message: string } {
+    // Security check: Validate transfer amount to prevent negative or non-numeric balance exploits
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+      return { success: false, message: 'Valor de transferência inválido' };
+    }
+
     const player = this.getOrCreatePlayer(userId);
     const server = this.servers.get(bankIp);
     if (!server || !server.bankAccounts) {
