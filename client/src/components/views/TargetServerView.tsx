@@ -77,7 +77,6 @@ export const TargetServerView: React.FC = () => {
   const crackerVersion = playerCracker?.version || 1.0;
   const hasherVersion = activeConnection.security.hasherLevel;
 
-  const playerMiner = player.software.find(s => s.type === 'miner');
   const playerBotnet = player.software.find(s => s.type === 'ddos');
   const playerSpyware = player.software.find(s => s.type === 'spyware');
 
