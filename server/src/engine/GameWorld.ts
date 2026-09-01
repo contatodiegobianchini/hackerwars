@@ -1459,11 +1459,18 @@ export class GameWorld {
 
   private startSpywareSnifferTicker() {
     setInterval(() => {
+      const playersByPlayerId = new Map<string, { userId: string; player: Player }>();
+      for (const entry of this.players.values()) {
+        if (entry?.player?.id) {
+          playersByPlayerId.set(entry.player.id, entry);
+        }
+      }
+
       for (const server of this.servers.values()) {
         if (!server.activeSpyware || server.activeSpyware.length === 0) continue;
 
         for (const implant of server.activeSpyware) {
-          const owner = Array.from(this.players.values()).find(p => p.player.id === implant.ownerId);
+          const owner = playersByPlayerId.get(implant.ownerId);
           if (!owner) continue;
 
           // Chance to intercept credentials based on spyware level
