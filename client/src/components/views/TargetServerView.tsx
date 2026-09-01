@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../stores/useGameStore.js';
-import { useAttacks } from '../../hooks/useAttacks.js';
+import { useBankActions } from '../../hooks/useBankActions.js';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -35,13 +35,15 @@ export const TargetServerView: React.FC = () => {
     disconnectTarget,
     deleteRemoteFile,
     wipeRemoteLogs,
-    bankTransfer,
-    siphonVictimCrypto,
-    siphonVictimAccount,
     setCurrentView
   } = useGameStore();
 
-  const { handleDownload, handleInstallMiner } = useSoftwareActions();
+  const {
+    handleMassBankHeist,
+    handleBankHeist,
+    handleSiphonAccount,
+    handleSiphonCrypto,
+  } = useBankActions();
 
   const [subTab, setSubTab] = useState<'attack' | 'files' | 'logs' | 'bank'>('attack');
 
@@ -82,16 +84,52 @@ export const TargetServerView: React.FC = () => {
   const existingSpyware = activeConnection.activeSpyware?.find(s => s.ownerId === player.id);
   const hasPlayerLogs = activeConnection.logs?.some(l => l.ip === player.ip || l.action.includes(player.ip));
 
-  const {
-    handleCrack,
-    handleScan,
-    handleDDoS,
-    handlePlantSpyware,
-    handleMassBankHeist,
-    handleDownload,
-    handleInstallMiner,
-    handleBankHeist
-  } = useAttacks();
+  const handleCrack = () => {
+    startProcess('crack', { targetIp: activeConnection.ip });
+  };
+
+  const handleScan = () => {
+    startProcess('scan', { targetIp: activeConnection.ip });
+  };
+
+  const handleDDoS = () => {
+    startProcess('ddos', {
+      targetIp: activeConnection.ip,
+      targetFileName: `Ataque DDoS em ${activeConnection.hostname}`
+    });
+  };
+
+  const handlePlantSpyware = () => {
+    if (!playerSpyware) {
+      alert('Você precisa de um software Spyware instalado para implantar keylogger e monitorar esta vítima!');
+      return;
+    }
+    startProcess('plant_spyware', {
+      targetIp: activeConnection.ip,
+      targetFileName: `Implantando Spyware Trojan (${playerSpyware.name})`,
+    });
+  };
+
+  const handleDownload = (file: SoftwareItem) => {
+    startProcess('download', {
+      targetIp: activeConnection.ip,
+      targetFileId: file.id,
+      targetFileName: file.name,
+    });
+  };
+
+  const handleInstallMiner = () => {
+    if (!playerMiner) {
+      alert('Você não possui um software minerador instalado!');
+      return;
+    }
+    startProcess('upload', {
+      targetIp: activeConnection.ip,
+      softwareId: playerMiner.id,
+      targetFileName: `CryptoMinerX v${playerMiner.version.toFixed(1)}`,
+      details: { softwareId: playerMiner.id }
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -466,7 +504,7 @@ export const TargetServerView: React.FC = () => {
                           </div>
 
                           <button
-                            onClick={() => siphonVictimAccount(activeConnection.ip, acc.accountNumber)}
+                            onClick={() => handleSiphonAccount(acc.accountNumber)}
                             disabled={acc.balance <= 0}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm ${
                               acc.balance > 0
@@ -504,7 +542,7 @@ export const TargetServerView: React.FC = () => {
                           </div>
 
                           <button
-                            onClick={() => siphonVictimCrypto(activeConnection.ip, w.address)}
+                            onClick={() => handleSiphonCrypto(w.address)}
                             className="bg-amber-500 hover:bg-amber-600 text-black px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
                           >
                             Drenar BTC
