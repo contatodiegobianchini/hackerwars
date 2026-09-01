@@ -103,7 +103,7 @@ export const HackerTerminalDrawer: React.FC = () => {
 
       {/* Retractable Bottom Drawer */}
       {isTerminalOpen && (
-        <div className="fixed bottom-0 left-0 right-0 h-[65vh] sm:h-80 bg-[#0d0d0d]/95 backdrop-blur-md border-t border-[#2c2c2e] z-50 flex flex-col font-mono text-xs select-none shadow-2xl animate-slide-up">
+        <div className="fixed bottom-0 left-0 right-0 h-[50vh] min-h-[220px] max-h-[85vh] sm:h-80 sm:max-h-[500px] bg-[#0d0d0d]/95 backdrop-blur-md border-t border-[#2c2c2e] z-50 flex flex-col font-mono text-xs select-none shadow-2xl animate-slide-up">
           {/* Header Bar */}
           <div className="h-10 bg-[#161618] border-b border-[#2c2c2e] px-3 sm:px-4 flex items-center justify-between text-gray-400">
             <div className="flex items-center space-x-2 truncate">
