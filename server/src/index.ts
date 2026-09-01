@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { GameWorld } from './engine/GameWorld.js';
@@ -17,6 +18,17 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 15, // Limit each IP to 15 requests per window
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de autenticação. Tente novamente mais tarde.' },
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 await initializeSupabaseDb();
 
