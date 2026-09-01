@@ -1,6 +1,8 @@
 import { Player, PlayerVps, VpsModuleType } from '../types/game.js';
 import { v4 as uuidv4 } from 'uuid';
 
+const VPS_YIELD_INTERVAL_MS = 60 * 60 * 1000;
+
 export const VPS_CATALOG = [
   {
     tier: 'micro' as const,
@@ -57,7 +59,7 @@ export class DatacenterEngine {
       activeModule: 'mining_rig',
       moduleLevel: 1,
       passivelyGeneratedUsd: 0,
-      ...({ lastYieldAt: Date.now() } as any),
+      lastYieldAt: Date.now(),
     };
     player.vpsList.push(vps);
     return { success: true, vps, message: `VPS "${spec.name}" (${randomIp}) ativado no Datacenter com sucesso!` };
@@ -92,6 +94,7 @@ export class DatacenterEngine {
     return this.upgradeVpsModule(player, vpsId);
   }
 
+  // The configured yield values are now paid once per hour instead of once per minute.
   public calculateMinuteYield(vps: PlayerVps): number {
     if (vps.activeModule === 'mining_rig') return Math.max(0, Math.round(vps.cpuPower * vps.moduleLevel * 8 + 10));
     if (vps.activeModule === 'phishing_honeypot') return Math.max(0, Math.round((vps.networkMbps / 100) * vps.moduleLevel * 0.5 + Math.random() * 20 + 10));
@@ -101,10 +104,28 @@ export class DatacenterEngine {
 
   public collectAutomaticMinuteYield(player: Player): { totalCollected: number; vpsYields: { vpsId: string; name: string; amount: number }[] } {
     if (!player.vpsList || player.vpsList.length === 0) return { totalCollected: 0, vpsYields: [] };
+
+    const now = Date.now();
     let totalCollected = 0;
     const vpsYields: { vpsId: string; name: string; amount: number }[] = [];
+
     for (const vps of player.vpsList) {
-      const amount = this.calculateMinuteYield(vps);
+      if (!vps.lastYieldAt) {
+        vps.lastYieldAt = now;
+        continue;
+      }
+
+      const elapsedMs = now - vps.lastYieldAt;
+      const completedHours = Math.floor(elapsedMs / VPS_YIELD_INTERVAL_MS);
+      if (completedHours <= 0) continue;
+
+      let amount = 0;
+      for (let hour = 0; hour < completedHours; hour += 1) {
+        amount += this.calculateMinuteYield(vps);
+      }
+
+      vps.lastYieldAt += completedHours * VPS_YIELD_INTERVAL_MS;
+
       if (amount > 0) {
         player.cash += amount;
         vps.passivelyGeneratedUsd = (vps.passivelyGeneratedUsd || 0) + amount;
@@ -112,6 +133,7 @@ export class DatacenterEngine {
         vpsYields.push({ vpsId: vps.id, name: vps.name, amount });
       }
     }
+
     return { totalCollected, vpsYields };
   }
 }
