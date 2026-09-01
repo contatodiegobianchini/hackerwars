@@ -26,6 +26,7 @@ import {
 } from '../types/game.js';
 import { sounds } from '../utils/audio.js';
 import { soundtrack } from '../utils/soundtrack.js';
+import { getAuthToken, setAuthToken, removeAuthToken } from '../utils/tokenStorage.js';
 import confetti from 'canvas-confetti';
 
 export type GameView =
