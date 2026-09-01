@@ -33,6 +33,13 @@ import { DarkChatEngine } from './DarkChatEngine.js';
 import { CPU_TIERS, GPU_TIERS, RAM_TIERS, HDD_TIERS, NETWORK_TIERS, VPN_TIERS, COOLING_TIERS } from './HardwareDatabase.js';
 import { db, dbHelpers } from '../database/sqlite.js';
 import { v4 as uuidv4 } from 'uuid';
+import { randomInt, getRandomValues } from 'crypto';
+
+function secureRandom(): number {
+  const buf = new Uint32Array(1);
+  getRandomValues(buf);
+  return buf[0] / 0x100000000;
+}
 
 export class GameWorld {
   private players: Map<string, { userId: string; player: Player }> = new Map();
@@ -1073,25 +1080,25 @@ export class GameWorld {
       { name: 'Pentágono Nuclear CyberGrid', domain: 'norad-core.defense-gov.mil', type: 'government' as const, desc: 'Supercomputador militar de contenção balística. Segurança de nível 50.0!' },
     ];
 
-    const pick = targetPool[Math.floor(Math.random() * targetPool.length)];
-    const nodeSuffix = Math.floor(Math.random() * 900 + 100);
-    const ip = `${Math.floor(Math.random() * 200 + 11)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 250 + 2)}`;
+    const pick = targetPool[randomInt(0, targetPool.length)];
+    const nodeSuffix = randomInt(100, 1000);
+    const ip = `${randomInt(11, 211)}.${randomInt(0, 256)}.${randomInt(0, 256)}.${randomInt(2, 252)}`;
 
     // Tiered hasher and firewall levels by target category
     let hasherLevel = 1.5;
     let firewallLevel = 1.2;
     if (pick.type === 'government') {
-      hasherLevel = Number((Math.random() * 25 + 25).toFixed(1)); // v25.0 - v50.0
-      firewallLevel = Number(Math.max(1.0, hasherLevel - Math.random() * 3).toFixed(1));
+      hasherLevel = Number((secureRandom() * 25 + 25).toFixed(1)); // v25.0 - v50.0
+      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 3).toFixed(1));
     } else if (pick.type === 'cartel' || pick.type === 'bank') {
-      hasherLevel = Number((Math.random() * 15 + 12).toFixed(1)); // v12.0 - v27.0
-      firewallLevel = Number(Math.max(1.0, hasherLevel - Math.random() * 2).toFixed(1));
+      hasherLevel = Number((secureRandom() * 15 + 12).toFixed(1)); // v12.0 - v27.0
+      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 2).toFixed(1));
     } else if (pick.type === 'corporate') {
-      hasherLevel = Number((Math.random() * 14 + 6).toFixed(1)); // v6.0 - v20.0
-      firewallLevel = Number(Math.max(1.0, hasherLevel - Math.random() * 2).toFixed(1));
+      hasherLevel = Number((secureRandom() * 14 + 6).toFixed(1)); // v6.0 - v20.0
+      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 2).toFixed(1));
     } else {
-      hasherLevel = Number((Math.random() * 4 + 1.2).toFixed(1)); // v1.2 - v5.2
-      firewallLevel = Number(Math.max(1.0, hasherLevel - Math.random() * 1).toFixed(1));
+      hasherLevel = Number((secureRandom() * 4 + 1.2).toFixed(1)); // v1.2 - v5.2
+      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 1).toFixed(1));
     }
 
     const isHighTier = hasherLevel >= 15.0;
@@ -1117,7 +1124,7 @@ export class GameWorld {
       security: {
         hasherLevel,
         firewallLevel,
-        password: `key_${Math.floor(Math.random() * 90000 + 10000)}`,
+        password: `key_${randomInt(10000, 100000)}`,
         isBreached: false,
         openPorts: [
           { port: 80, service: 'HTTP', open: true, version: 'Nginx 1.24' },
@@ -1146,10 +1153,10 @@ export class GameWorld {
       ],
       bankAccounts: isCartelOrBank ? [
         {
-          accountNumber: `ACC-${Math.floor(Math.random() * 89999 + 10000)}`,
+          accountNumber: `ACC-${randomInt(10000, 100000)}`,
           bankIp: '12.189.44.10',
           bankName: 'MegaBank Global',
-          balance: Math.round(hasherLevel * 15000 + Math.random() * 25000),
+          balance: Math.round(hasherLevel * 15000 + secureRandom() * 25000),
           password: `secret_${nodeSuffix}`,
           ownerName: pick.name,
         }
