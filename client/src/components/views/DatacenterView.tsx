@@ -8,6 +8,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
+const YIELD_INTERVAL_MS = 60 * 60 * 1000;
+
 export const DatacenterView: React.FC = () => {
   const {
     player,
@@ -17,21 +19,35 @@ export const DatacenterView: React.FC = () => {
     upgradeVpsModule
   } = useGameStore();
 
-  const [secondsRemaining, setSecondsRemaining] = React.useState<number>(60 - (Math.floor(Date.now() / 1000) % 60));
+  const [secondsRemaining, setSecondsRemaining] = React.useState<number>(3600);
 
   React.useEffect(() => {
-    const timer = setInterval(() => {
-      const secLeft = 60 - (Math.floor(Date.now() / 1000) % 60);
-      setSecondsRemaining(secLeft);
-    }, 1000);
+    const updateCountdown = () => {
+      const now = Date.now();
+      const vpsList = player?.vpsList || [];
+
+      if (vpsList.length === 0) {
+        setSecondsRemaining(3600);
+        return;
+      }
+
+      const nextPayoutAt = Math.min(
+        ...vpsList.map(vps => (vps.lastYieldAt || now) + YIELD_INTERVAL_MS)
+      );
+
+      setSecondsRemaining(Math.max(0, Math.ceil((nextPayoutAt - now) / 1000)));
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [player?.vpsList]);
 
   if (!player) return null;
 
   const vpsList = player.vpsList || [];
 
-  const estimatedMinYield = vpsList.reduce((acc, v) => {
+  const estimatedHourlyYield = vpsList.reduce((acc, v) => {
     if (v.activeModule === 'mining_rig') {
       return acc + Math.round(v.cpuPower * v.moduleLevel * 8 + 10);
     } else if (v.activeModule === 'phishing_honeypot') {
@@ -43,6 +59,14 @@ export const DatacenterView: React.FC = () => {
   }, 0);
 
   const totalHistoricalGenerated = vpsList.reduce((acc, v) => acc + (v.passivelyGeneratedUsd || 0), 0);
+
+  const formatCountdown = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hours > 0) return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
+    return `${minutes.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+  };
 
   const getUpgradeCost = (tier: string, moduleLevel: number) => {
     if (moduleLevel >= 10) return null;
@@ -60,7 +84,7 @@ export const DatacenterView: React.FC = () => {
               <h1 className="text-base font-bold text-gray-900">Datacenter Cloud & Servidores VPS</h1>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Alugue instâncias em nuvem de alta velocidade. O sistema recolhe e credita o saldo <strong>automaticamente a cada 1 minuto</strong>!
+              Alugue instâncias em nuvem de alta velocidade. O sistema recolhe e credita o saldo <strong>automaticamente a cada 1 hora</strong>.
             </p>
           </div>
 
@@ -79,20 +103,20 @@ export const DatacenterView: React.FC = () => {
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-                  RECOLHIMENTO AUTOMÁTICO (1 MINUTO)
+                  RECOLHIMENTO AUTOMÁTICO (1 HORA)
                 </span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
               </div>
               <div className="text-xs text-zinc-300 mt-0.5 font-mono">
-                Rendimento Estimado: <strong className="text-emerald-400 font-bold">+${estimatedMinYield.toLocaleString()} USD / min</strong> • Total Histórico: <strong className="text-white font-bold">${totalHistoricalGenerated.toLocaleString()} USD</strong>
+                Rendimento Estimado: <strong className="text-emerald-400 font-bold">+${estimatedHourlyYield.toLocaleString()} USD / hora</strong> • Total Histórico: <strong className="text-white font-bold">${totalHistoricalGenerated.toLocaleString()} USD</strong>
               </div>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
             <div className="bg-emerald-900/60 border border-emerald-500/40 px-4 py-2 rounded-xl text-xs font-mono text-center">
-              <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Depósito Automático em</div>
-              <div className="text-base font-bold text-white mt-0.5">{secondsRemaining}s</div>
+              <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Próximo depósito em</div>
+              <div className="text-base font-bold text-white mt-0.5">{formatCountdown(secondsRemaining)}</div>
             </div>
 
             <div className="bg-[#142318] border border-emerald-500/30 text-emerald-400 px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold flex items-center space-x-2">
