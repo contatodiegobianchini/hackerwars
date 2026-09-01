@@ -82,7 +82,7 @@ const securityMiddleware = (req: any, res: any, next: any) => {
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
-  // Enforce HTTPS only after TLS is terminated upstream (Render/Vercel proxy).
+  // Enforce HTTPS only after TLS is terminated upstream (for example by Render).
   if (req.get('x-forwarded-proto') === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000');
   }
@@ -122,3 +122,130 @@ const securityMiddleware = (req: any, res: any, next: any) => {
   }
   next();
 };
+
+expressAny.application.use = function patchedUse(this: any, ...args: any[]) {
+  if (!securityMiddlewareInstalled) {
+    securityMiddlewareInstalled = true;
+    originalUse.call(this, securityMiddleware);
+  }
+  return originalUse.apply(this, args);
+};
+
+const originalJson = expressAny.json;
+expressAny.json = (options: any = {}) => {
+  const parser = originalJson({ limit: '100kb', ...options });
+  return (req: any, res: any, next: any) => parser(req, res, (error: any) => {
+    if (error) return next(error);
+    if ((req.path === '/api/auth/login' || req.path === '/api/auth/register') && req.body) {
+      const { username, password } = req.body;
+      if (typeof username !== 'string' || typeof password !== 'string') return res.status(400).json({ error: 'Dados de autenticação inválidos.' });
+      if (req.path === '/api/auth/register' && password.length < 12) return res.status(400).json({ error: 'A senha deve ter pelo menos 12 caracteres.' });
+    }
+    next();
+  });
+};
+
+const socketServerAny = SocketIOServer as any;
+const originalServerOn = socketServerAny.prototype.on;
+socketServerAny.prototype.on = function patchedServerOn(this: any, event: string, listener: (...args: any[]) => void) {
+  if (event !== 'connection') return originalServerOn.call(this, event, listener);
+  const securedListener = (socket: Socket, ...args: any[]) => {
+    const origin = socket.handshake.headers.origin;
+    if (!originAllowed(origin)) return socket.disconnect(true);
+    const claims = verifyJwt(socket.handshake.auth?.token);
+    if (!claims) {
+      socket.emit('auth_error', { message: 'Autenticação do socket inválida.' });
+      return socket.disconnect(true);
+    }
+    socket.data.user = claims;
+    return listener(socket, ...args);
+  };
+  return originalServerOn.call(this, event, securedListener);
+};
+
+const socketPrototypeAny = Socket.prototype as any;
+const originalSocketOn = socketPrototypeAny.on;
+socketPrototypeAny.on = function patchedSocketOn(this: any, event: string, listener: (...args: any[]) => void) {
+  if (event === 'set_user_session') {
+    return originalSocketOn.call(this, event, () => {
+      const userId = this.data?.user?.userId;
+      if (!userId) return;
+      return listener({ userId });
+    });
+  }
+  const guardedListener = (...args: any[]) => {
+    try {
+      const payloadSize = JSON.stringify(args)?.length ?? 0;
+      if (payloadSize > 64_000) {
+        this.emit('error', new Error('Payload do socket excede o limite permitido.'));
+        return;
+      }
+    } catch {
+      this.emit('error', new Error('Payload do socket inválido.'));
+      return;
+    }
+    return listener(...args);
+  };
+  return originalSocketOn.call(this, event, guardedListener);
+};
+
+GameWorld.prototype.verifyIsAdmin = function secureVerifyIsAdmin(adminUserId: string): boolean {
+  const user = dbHelpers.getUserById(adminUserId);
+  if (!user) return false;
+  return user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && user.role === 'admin';
+};
+
+// Compatibility bridge for handlers left with the pre-Supabase method signatures.
+const gameWorldPrototype = GameWorld.prototype as any;
+if (!gameWorldPrototype.connectToTarget && gameWorldPrototype.connectToServer) {
+  gameWorldPrototype.connectToTarget = function (userId: string, ip: string) {
+    return this.connectToServer(userId, ip);
+  };
+}
+
+if (gameWorldPrototype.adminUpdatePlayer) {
+  const originalAdminUpdatePlayer = gameWorldPrototype.adminUpdatePlayer;
+  gameWorldPrototype.adminUpdatePlayer = function (adminUserId: string, targetUserId: string, updates?: any) {
+    // The current socket handler historically called (targetUserId, updates).
+    // Resolve the sole admin explicitly rather than trusting a client-supplied admin id.
+    if (updates === undefined && targetUserId && typeof targetUserId === 'object') {
+      const target = adminUserId;
+      const patch = targetUserId;
+      const admin = dbHelpers.getUserByUsername(ADMIN_USERNAME.toLowerCase());
+      if (!admin || !this.verifyIsAdmin(admin.id)) {
+        return { success: false, message: 'Acesso negado.' };
+      }
+      return originalAdminUpdatePlayer.call(this, admin.id, target, patch);
+    }
+    return originalAdminUpdatePlayer.call(this, adminUserId, targetUserId, updates);
+  };
+}
+
+const originalUpdateUserRole = dbHelpers.updateUserRole;
+dbHelpers.updateUserRole = (userId: string, role: 'admin' | 'player'): boolean => {
+  const user = dbHelpers.getUserById(userId);
+  if (!user) return false;
+  const safeRole = role === 'admin' && user.username.toLowerCase() !== ADMIN_USERNAME.toLowerCase() ? 'player' : role;
+  return originalUpdateUserRole(userId, safeRole);
+};
+
+const originalUpdateUserPassword = dbHelpers.updateUserPassword;
+dbHelpers.updateUserPassword = (userId: string, newPlainPassword: string): boolean => {
+  const user = dbHelpers.getUserById(userId);
+  if (!user) return false;
+  const minimumLength = user.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() ? 20 : 12;
+  if (typeof newPlainPassword !== 'string' || newPlainPassword.length < minimumLength) return false;
+  return originalUpdateUserPassword(userId, newPlainPassword);
+};
+
+await import('./index.js');
+
+if (!capturedServer) throw new Error('Failed to capture the HackerWars HTTP server instance.');
+
+const PORT = Number(process.env.PORT || 10000);
+capturedServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`HackerWars server listening on ${PORT}`);
+});
+
+export default capturedServer;
+export { capturedServer };
