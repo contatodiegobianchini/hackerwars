@@ -82,6 +82,11 @@ const securityMiddleware = (req: any, res: any, next: any) => {
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
+  // Enforce HTTPS only after TLS is terminated upstream (for example by Render).
+  if (req.get('x-forwarded-proto') === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+  }
+
   const isAuthEndpoint = req.path === '/api/auth/login' || req.path === '/api/auth/register';
   if (isAuthEndpoint) {
     const now = Date.now();
