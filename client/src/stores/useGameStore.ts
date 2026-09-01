@@ -170,7 +170,7 @@ interface GameState {
 
 export const useGameStore = create<GameState>((set, get) => ({
   currentUser: null,
-  token: sessionStorage.getItem('hacker_token'),
+  token: typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hacker_token') : null,
   isAuthLoading: true,
   player: null,
   servers: [],
@@ -220,7 +220,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   removeToast: (id) => set(state => ({ toasts: state.toasts.filter(t => t.id !== id) })),
 
   checkAuth: async () => {
-    const token = sessionStorage.getItem('hacker_token');
+    const token = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hacker_token') : null;
     if (!token) { set({ isAuthLoading: false, currentUser: null, token: null }); return; }
     try {
       const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
@@ -303,7 +303,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const existing = get().socket;
     const user = get().currentUser;
     if (existing) { if (user?.id && existing.connected) existing.emit('set_user_session', { userId: user.id }); return; }
-    const token = get().token || sessionStorage.getItem('hacker_token');
+    const token = get().token || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hacker_token') : null);
     const socket = io('/', { transports: ['websocket', 'polling'], auth: { token } });
     socket.on('connect', () => { const u = get().currentUser; if (u?.id) socket.emit('set_user_session', { userId: u.id }); soundtrack.start(); });
     socket.on('init_state', (data) => set({ player: data.player, servers: data.servers, allServers: data.allServers, missions: data.missions, cryptoState: data.cryptoState, crates: data.crates || [], clans: data.clans || [], territoryNodes: data.territoryNodes || [], contracts: data.contracts || [], auctions: data.auctions || [], activeRaid: data.activeRaid || null, vpsCatalog: data.vpsCatalog || [], storyChapters: data.storyChapters || [], darkChatChannels: data.darkChatChannels || [], activeTrace: data.activeTrace || null, news: data.news, processes: data.processes || [] }));
