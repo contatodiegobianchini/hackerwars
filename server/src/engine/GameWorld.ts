@@ -36,6 +36,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export class GameWorld {
   private players: Map<string, { userId: string; player: Player }> = new Map();
+  private playersById: Map<string, { userId: string; player: Player }> = new Map();
   private servers: Map<string, VirtualServer> = new Map();
   public missionEngine: MissionEngine;
   public cryptoEngine: CryptoEngine;
@@ -82,13 +83,17 @@ export class GameWorld {
     const saved = dbHelpers.getPlayerByUserId(userId);
     if (saved) {
       this.updatePlayerStats(saved);
-      this.players.set(userId, { userId, player: saved });
+      const entry = { userId, player: saved };
+      this.players.set(userId, entry);
+      this.playersById.set(saved.id, entry);
       return saved;
     }
 
     const user = dbHelpers.getUserById(userId);
     const created = dbHelpers.createUser(user ? user.username : 'hacker', 'temp');
-    this.players.set(userId, { userId, player: created.player });
+    const entry = { userId, player: created.player };
+    this.players.set(userId, entry);
+    this.playersById.set(created.player.id, entry);
     return created.player;
   }
 
@@ -1459,18 +1464,11 @@ export class GameWorld {
 
   private startSpywareSnifferTicker() {
     setInterval(() => {
-      const playersByPlayerId = new Map<string, { userId: string; player: Player }>();
-      for (const entry of this.players.values()) {
-        if (entry?.player?.id) {
-          playersByPlayerId.set(entry.player.id, entry);
-        }
-      }
-
       for (const server of this.servers.values()) {
         if (!server.activeSpyware || server.activeSpyware.length === 0) continue;
 
         for (const implant of server.activeSpyware) {
-          const owner = playersByPlayerId.get(implant.ownerId);
+          const owner = this.playersById.get(implant.ownerId);
           if (!owner) continue;
 
           // Chance to intercept credentials based on spyware level
@@ -1809,6 +1807,10 @@ export class GameWorld {
     const user = dbHelpers.getUserById(targetUserId);
     if (!user) return { success: false, message: 'Usuário não encontrado.' };
 
+    const cached = this.players.get(targetUserId);
+    if (cached?.player?.id) {
+      this.playersById.delete(cached.player.id);
+    }
     this.players.delete(targetUserId);
     const ok = dbHelpers.deleteUser(targetUserId);
 

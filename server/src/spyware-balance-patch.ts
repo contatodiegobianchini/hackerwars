@@ -9,10 +9,13 @@ const BTC_PAYOUT_CAP = 0.0015;
 // Rebalance the automatic spyware/keylogger sniffer for a much slower early-game economy.
 gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTicker() {
   setInterval(() => {
-    const playersByPlayerId = new Map<string, any>();
-    for (const entry of (this.players as Map<string, any>).values()) {
-      if (entry?.player?.id) {
-        playersByPlayerId.set(entry.player.id, entry);
+    let playersByIdMap: Map<string, any> | undefined = this.playersById;
+    if (!playersByIdMap) {
+      playersByIdMap = new Map<string, any>();
+      for (const entry of (this.players as Map<string, any>).values()) {
+        if (entry?.player?.id) {
+          playersByIdMap.set(entry.player.id, entry);
+        }
       }
     }
 
@@ -20,7 +23,7 @@ gameWorldPrototype.startSpywareSnifferTicker = function balancedSpywareSnifferTi
       if (!server.activeSpyware || server.activeSpyware.length === 0) continue;
 
       for (const implant of server.activeSpyware) {
-        const owner = playersByPlayerId.get(implant.ownerId);
+        const owner = playersByIdMap.get(implant.ownerId);
         if (!owner) continue;
 
         const roll = Math.random();
