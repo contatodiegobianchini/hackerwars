@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../stores/useGameStore.js';
+import { useSoftwareActions } from '../../hooks/useSoftwareActions.js';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -39,6 +40,8 @@ export const TargetServerView: React.FC = () => {
     siphonVictimAccount,
     setCurrentView
   } = useGameStore();
+
+  const { handleDownload, handleInstallMiner } = useSoftwareActions();
 
   const [subTab, setSubTab] = useState<'attack' | 'files' | 'logs' | 'bank'>('attack');
 
@@ -113,27 +116,6 @@ export const TargetServerView: React.FC = () => {
         targetFileName: `Infiltrando Database Central & Mega-Assalto em ${activeConnection.hostname}`,
       });
     }
-  };
-
-  const handleDownload = (file: SoftwareItem) => {
-    startProcess('download', {
-      targetIp: activeConnection.ip,
-      targetFileId: file.id,
-      targetFileName: file.name,
-    });
-  };
-
-  const handleInstallMiner = () => {
-    if (!playerMiner) {
-      alert('Você não possui um software minerador instalado!');
-      return;
-    }
-    startProcess('upload', {
-      targetIp: activeConnection.ip,
-      softwareId: playerMiner.id,
-      targetFileName: `CryptoMinerX v${playerMiner.version.toFixed(1)}`,
-      details: { softwareId: playerMiner.id }
-    });
   };
 
   const handleBankHeist = (victimAcc: any) => {
