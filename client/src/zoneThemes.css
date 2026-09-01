@@ -90,49 +90,6 @@ main[data-view="campaign"] {
   --zone-accent: #7c3aed;
 }
 
-main[data-view="campaign"] > div > div > div:first-child {
-  position: relative;
-  background: radial-gradient(circle at 74% 0%, rgba(124,58,237,.20), transparent 30%), linear-gradient(135deg,#14121b,#09090c) !important;
-  border: 1px solid #302a3a !important;
-  border-bottom: 2px solid #6d4cae !important;
-  box-shadow: 0 18px 40px rgba(0,0,0,.32) !important;
-}
-main[data-view="campaign"] > div > div > div:first-child::after {
-  content: "CLASSIFIED // STORY ARCHIVE";
-  position: absolute;
-  right: 18px;
-  top: 16px;
-  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: .15em;
-  color: #887b98;
-}
-
-/* Chapters row is the second direct child of the campaign root. */
-main[data-view="campaign"] > div > div > div:nth-child(2) {
-  display: grid !important;
-  grid-template-columns: repeat(5,minmax(0,1fr));
-  gap: 8px !important;
-  padding: 4px 0;
-}
-main[data-view="campaign"] > div > div > div:nth-child(2) > div {
-  position: relative;
-  min-height: 78px;
-  border-radius: 5px !important;
-  border-width: 1px !important;
-}
-main[data-view="campaign"] > div > div > div:nth-child(3) {
-  background: #fbf9fd !important;
-  border-color: #dcd4e6 !important;
-  box-shadow: 0 12px 28px rgba(18,10,27,.14) !important;
-}
-main[data-view="campaign"] > div > div > div:nth-child(3) > div:nth-child(3) > div {
-  background: #f3eff7 !important;
-  border-color: #dfd6e8 !important;
-}
-main[data-view="campaign"] .rounded-3xl { border-radius: 8px !important; }
-main[data-view="campaign"] .rounded-2xl { border-radius: 6px !important; }
-main[data-view="campaign"] .rounded-xl { border-radius: 5px !important; }
-
 /* =========================
    DATACENTER
    ========================= */
@@ -204,8 +161,3 @@ main[data-view="datacenter"] > div > div > div:nth-child(4) .bg-white {
 main[data-view="datacenter"] .rounded-2xl { border-radius: 6px !important; }
 main[data-view="datacenter"] .rounded-xl { border-radius: 5px !important; }
 
-@media (max-width: 900px) {
-  main[data-view="campaign"] > div > div > div:nth-child(2) {
-    grid-template-columns: repeat(2,minmax(0,1fr));
-  }
-}

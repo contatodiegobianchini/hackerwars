@@ -315,8 +315,6 @@ main[data-view="campaign"] {
     radial-gradient(circle at 75% 0%, rgba(99,102,241,0.10), transparent 28%),
     radial-gradient(circle at 10% 62%, rgba(124,58,237,0.045), transparent 22%);
 }
-main[data-view="campaign"] .bg-white { background: #faf9fc; border-color: #e2deea; }
-main[data-view="campaign"] .bg-gray-50 { background: #f5f3f8; }
 
 /* Target server: active operations, blue-green status lighting. */
 main[data-view="target_server"] {
