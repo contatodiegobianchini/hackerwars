@@ -170,7 +170,7 @@ interface GameState {
 
 export const useGameStore = create<GameState>((set, get) => ({
   currentUser: null,
-  token: getAuthToken(),
+  token: sessionStorage.getItem('hacker_token'),
   isAuthLoading: true,
   player: null,
   servers: [],
@@ -220,7 +220,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   removeToast: (id) => set(state => ({ toasts: state.toasts.filter(t => t.id !== id) })),
 
   checkAuth: async () => {
-    const token = getAuthToken();
+    const token = sessionStorage.getItem('hacker_token');
     if (!token) { set({ isAuthLoading: false, currentUser: null, token: null }); return; }
     try {
       const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
@@ -231,7 +231,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         get().initSocket();
         get().socket?.emit('set_user_session', { userId: user.id });
       } else {
-        removeAuthToken();
+        sessionStorage.removeItem('hacker_token');
         set({ token: null, currentUser: null, isAuthLoading: false });
       }
     } catch { set({ isAuthLoading: false }); }
@@ -242,7 +242,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error || 'Falha ao autenticar' };
-      setAuthToken(data.token);
+      sessionStorage.setItem('hacker_token', data.token);
       set({ token: data.token, currentUser: data.user, player: data.player });
       const { socket } = get();
       if (socket) socket.emit('set_user_session', { userId: data.user.id }); else get().initSocket();
@@ -257,7 +257,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error || 'Falha ao registrar conta' };
-      setAuthToken(data.token);
+      sessionStorage.setItem('hacker_token', data.token);
       set({ token: data.token, currentUser: data.user, player: data.player });
       const { socket } = get();
       if (socket) socket.emit('set_user_session', { userId: data.user.id }); else get().initSocket();
@@ -267,7 +267,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     } catch { return { success: false, error: 'Erro de conexão com o servidor' }; }
   },
 
-  logout: () => { removeAuthToken(); get().socket?.disconnect(); set({ token: null, currentUser: null, player: null, socket: null, activeConnection: null, currentView: 'my_server' }); sounds.alert(); },
+  logout: () => { sessionStorage.removeItem('hacker_token'); get().socket?.disconnect(); set({ token: null, currentUser: null, player: null, socket: null, activeConnection: null, currentView: 'my_server' }); sounds.alert(); },
 
   openLootbox: (crateId, paymentMethod) => { const { socket } = get(); if (socket) { set({ isOpeningLootbox: true }); sounds.taskStart(); socket.emit('open_lootbox', { crateId, paymentMethod }); } },
   clearLootReward: () => set({ activeLootReward: null, isOpeningLootbox: false }),
@@ -303,7 +303,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const existing = get().socket;
     const user = get().currentUser;
     if (existing) { if (user?.id && existing.connected) existing.emit('set_user_session', { userId: user.id }); return; }
-    const token = get().token || getAuthToken();
+    const token = get().token || sessionStorage.getItem('hacker_token');
     const socket = io('/', { transports: ['websocket', 'polling'], auth: { token } });
     socket.on('connect', () => { const u = get().currentUser; if (u?.id) socket.emit('set_user_session', { userId: u.id }); soundtrack.start(); });
     socket.on('init_state', (data) => set({ player: data.player, servers: data.servers, allServers: data.allServers, missions: data.missions, cryptoState: data.cryptoState, crates: data.crates || [], clans: data.clans || [], territoryNodes: data.territoryNodes || [], contracts: data.contracts || [], auctions: data.auctions || [], activeRaid: data.activeRaid || null, vpsCatalog: data.vpsCatalog || [], storyChapters: data.storyChapters || [], darkChatChannels: data.darkChatChannels || [], activeTrace: data.activeTrace || null, news: data.news, processes: data.processes || [] }));
