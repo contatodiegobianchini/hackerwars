@@ -41,6 +41,8 @@ export const TargetServerView: React.FC = () => {
     setCurrentView
   } = useGameStore();
 
+  const { handleDownload, handleInstallMiner } = useSoftwareActions();
+
   const [subTab, setSubTab] = useState<'attack' | 'files' | 'logs' | 'bank'>('attack');
 
   if (!player) return null;
