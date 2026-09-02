@@ -37,6 +37,7 @@ import { v4 as uuidv4 } from 'uuid';
 export class GameWorld {
   private players: Map<string, { userId: string; player: Player }> = new Map();
   private servers: Map<string, VirtualServer> = new Map();
+  private bankAccountMap: Map<string, BankAccount> = new Map();
   public missionEngine: MissionEngine;
   public cryptoEngine: CryptoEngine;
   public blackMarketEngine: BlackMarketEngine;
@@ -48,10 +49,19 @@ export class GameWorld {
   public contractsAndRaidEngine: ContractsAndRaidEngine;
   public darkChatEngine: DarkChatEngine;
 
+  private indexServerBankAccounts(server: VirtualServer) {
+    if (server.bankAccounts) {
+      for (const acc of server.bankAccounts) {
+        this.bankAccountMap.set(acc.accountNumber, acc);
+      }
+    }
+  }
+
   constructor() {
     const savedServers = dbHelpers.getAllServers();
     savedServers.forEach(srv => {
       this.servers.set(srv.ip, srv);
+      this.indexServerBankAccounts(srv);
     });
 
     this.missionEngine = new MissionEngine();
@@ -925,15 +935,7 @@ export class GameWorld {
     }
 
     if (!destAcc) {
-      for (const s of this.servers.values()) {
-        if (s.bankAccounts) {
-          const found = s.bankAccounts.find(a => a.accountNumber === destAccNum);
-          if (found) {
-            destAcc = found;
-            break;
-          }
-        }
-      }
+      destAcc = this.bankAccountMap.get(destAccNum);
     }
 
     if (!destAcc) {
@@ -1156,6 +1158,7 @@ export class GameWorld {
     };
 
     this.servers.set(ip, srv);
+    this.indexServerBankAccounts(srv);
     dbHelpers.saveServer(srv);
 
     const player = this.getOrCreatePlayer(userId);
@@ -1193,7 +1196,7 @@ export class GameWorld {
           this.savePlayerState(userId);
         }
       }
-    }, 5000);
+    }, 5000).unref();
   }
 
   public collectVpsRevenue(userId: string): { success: boolean; totalCollected: number; message: string } {
@@ -1228,7 +1231,7 @@ export class GameWorld {
           }
         }
       }
-    }, 60000);
+    }, 60000).unref();
   }
 
   private startWorldNewsTicker() {
@@ -1248,7 +1251,7 @@ export class GameWorld {
         const h = headlines[Math.floor(Math.random() * headlines.length)];
         this.addNews(h, 'SYSTEM');
       }
-    }, 45000);
+    }, 45000).unref();
   }
 
   private startNpcSecurityTicker() {
@@ -1267,7 +1270,7 @@ export class GameWorld {
           }
         }
       }
-    }, 30000);
+    }, 30000).unref();
   }
 
   public plantSpyware(userId: string, targetIp: string): { success: boolean; message: string; server?: VirtualServer } {
@@ -1531,7 +1534,7 @@ export class GameWorld {
           }
         }
       }
-    }, 15000);
+    }, 15000).unref();
   }
 
   // --- Campaign, Factions & Story Mode ---
@@ -1827,8 +1830,12 @@ export class GameWorld {
 
     dbHelpers.resetAllServers();
     this.servers.clear();
+    this.bankAccountMap.clear();
     const freshServers = dbHelpers.getAllServers();
-    freshServers.forEach(s => this.servers.set(s.ip, s));
+    freshServers.forEach(s => {
+      this.servers.set(s.ip, s);
+      this.indexServerBankAccounts(s);
+    });
 
     return {
       success: true,
