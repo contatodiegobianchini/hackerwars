@@ -48,7 +48,7 @@ export class GameWorld {
   public contractsAndRaidEngine: ContractsAndRaidEngine;
   public darkChatEngine: DarkChatEngine;
 
-  constructor() {
+  constructor(disableTickers: boolean = false) {
     const savedServers = dbHelpers.getAllServers();
     savedServers.forEach(srv => {
       this.servers.set(srv.ip, srv);
@@ -65,11 +65,13 @@ export class GameWorld {
     this.contractsAndRaidEngine = new ContractsAndRaidEngine(this);
     this.darkChatEngine = new DarkChatEngine();
 
-    this.startMiningTicker();
-    this.startWorldNewsTicker();
-    this.startNpcSecurityTicker();
-    this.startVpsAndInvasionTicker();
-    this.startSpywareSnifferTicker();
+    if (!disableTickers) {
+      this.startMiningTicker();
+      this.startWorldNewsTicker();
+      this.startNpcSecurityTicker();
+      this.startVpsAndInvasionTicker();
+      this.startSpywareSnifferTicker();
+    }
   }
 
   public getOrCreatePlayer(userId: string): Player {
@@ -1167,33 +1169,43 @@ export class GameWorld {
   }
 
   private startMiningTicker() {
-    setInterval(() => {
-      for (const { userId, player } of this.players.values()) {
-        if (!player.cryptoWallet) player.cryptoWallet = { btc: 0, eth: 0, doge: 0, shdw: 0, pepe: 0 };
-        const targetCoin = player.miningTargetCoin || 'btc';
-        const coin = this.cryptoEngine.getCoin(targetCoin);
-        const coinPrice = coin ? coin.priceUsd : 68000;
-
-        const localGpuMult = player.hardware.gpu ? player.hardware.gpu.miningMultiplier : 1.0;
-
-        let totalMinedUsd = 0;
-        for (const server of this.servers.values()) {
-          if (!server.activeMiners) server.activeMiners = [];
-          const miner = server.activeMiners.find(m => m.ownerId === player.id);
-          if (miner) {
-            const usdGained = (server.hardware.cpuPower * miner.minerLevel * 0.005 * localGpuMult);
-            totalMinedUsd += usdGained;
-          }
-        }
-
-        if (totalMinedUsd > 0) {
-          const coinGained = totalMinedUsd / coinPrice;
-          player.cryptoWallet[targetCoin] = Number(((player.cryptoWallet[targetCoin] || 0) + coinGained).toFixed(targetCoin === 'pepe' ? 2 : 6));
-          if (targetCoin === 'btc') player.crypto = player.cryptoWallet.btc;
-          this.savePlayerState(userId);
-        }
-      }
+    const timer = setInterval(() => {
+      this.tickMining();
     }, 5000);
+    timer.unref?.();
+  }
+
+  public tickMining() {
+    // Single O(S * M) pass: aggregate base USD yield per player ownerId
+    const minedUsdByOwner = new Map<string, number>();
+
+    for (const server of this.servers.values()) {
+      if (!server.activeMiners) continue;
+      const cpuPower = server.hardware.cpuPower;
+      for (const miner of server.activeMiners) {
+        const baseUsd = cpuPower * miner.minerLevel * 0.005;
+        minedUsdByOwner.set(miner.ownerId, (minedUsdByOwner.get(miner.ownerId) || 0) + baseUsd);
+      }
+    }
+
+    // Single O(P) pass: update player wallet using GPU multiplier
+    for (const { userId, player } of this.players.values()) {
+      const baseMinedUsd = minedUsdByOwner.get(player.id);
+      if (!baseMinedUsd || baseMinedUsd <= 0) continue;
+
+      if (!player.cryptoWallet) player.cryptoWallet = { btc: 0, eth: 0, doge: 0, shdw: 0, pepe: 0 };
+      const targetCoin = player.miningTargetCoin || 'btc';
+      const coin = this.cryptoEngine.getCoin(targetCoin);
+      const coinPrice = coin ? coin.priceUsd : 68000;
+
+      const localGpuMult = player.hardware.gpu ? player.hardware.gpu.miningMultiplier : 1.0;
+      const totalMinedUsd = baseMinedUsd * localGpuMult;
+
+      const coinGained = totalMinedUsd / coinPrice;
+      player.cryptoWallet[targetCoin] = Number(((player.cryptoWallet[targetCoin] || 0) + coinGained).toFixed(targetCoin === 'pepe' ? 2 : 6));
+      if (targetCoin === 'btc') player.crypto = player.cryptoWallet.btc;
+      this.savePlayerState(userId);
+    }
   }
 
   public collectVpsRevenue(userId: string): { success: boolean; totalCollected: number; message: string } {
@@ -1211,7 +1223,7 @@ export class GameWorld {
 
   private startVpsAndInvasionTicker() {
     // Automated Datacenter Revenue Collection every 1 minute (60s)
-    setInterval(() => {
+    const timer = setInterval(() => {
       for (const { userId, player } of this.players.values()) {
         const res = this.datacenterEngine.collectAutomaticMinuteYield(player);
         if (res.totalCollected > 0) {
@@ -1229,6 +1241,7 @@ export class GameWorld {
         }
       }
     }, 60000);
+    timer.unref?.();
   }
 
   private startWorldNewsTicker() {
@@ -1243,16 +1256,17 @@ export class GameWorld {
       'Guerra de Clãs esquenta pelo controle do Satélite de Wall Street e Cluster Quântico!',
     ];
 
-    setInterval(() => {
+    const timer = setInterval(() => {
       if (Math.random() > 0.6) {
         const h = headlines[Math.floor(Math.random() * headlines.length)];
         this.addNews(h, 'SYSTEM');
       }
     }, 45000);
+    timer.unref?.();
   }
 
   private startNpcSecurityTicker() {
-    setInterval(() => {
+    const timer = setInterval(() => {
       const fcb = this.servers.get('198.51.100.24');
       if (fcb && fcb.logs) {
         for (const { userId, player } of this.players.values()) {
@@ -1268,6 +1282,7 @@ export class GameWorld {
         }
       }
     }, 30000);
+    timer.unref?.();
   }
 
   public plantSpyware(userId: string, targetIp: string): { success: boolean; message: string; server?: VirtualServer } {
@@ -1458,7 +1473,7 @@ export class GameWorld {
   }
 
   private startSpywareSnifferTicker() {
-    setInterval(() => {
+    const timer = setInterval(() => {
       const playersByPlayerId = new Map<string, { userId: string; player: Player }>();
       for (const entry of this.players.values()) {
         if (entry?.player?.id) {
@@ -1532,6 +1547,7 @@ export class GameWorld {
         }
       }
     }, 15000);
+    timer.unref?.();
   }
 
   // --- Campaign, Factions & Story Mode ---
