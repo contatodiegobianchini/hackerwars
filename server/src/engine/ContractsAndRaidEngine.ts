@@ -426,6 +426,6 @@ export class ContractsAndRaidEngine {
           auc.minNextBidUsd = Math.round(auc.currentBidUsd * 1.15);
         }
       }
-    }, 40000);
+    }, 40000).unref();
   }
 }

@@ -105,6 +105,6 @@ export class CryptoEngine {
       }
 
       this.totalNetworkHashrate = Number((800 + Math.random() * 80).toFixed(1));
-    }, 4000);
+    }, 4000).unref();
   }
 }
