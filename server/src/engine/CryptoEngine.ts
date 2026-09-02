@@ -80,6 +80,7 @@ export class CryptoEngine {
   }
 
   private startSimulation() {
+    if (process.env.NODE_ENV === 'test') return;
     // Tick prices every 4 seconds
     setInterval(() => {
       for (const coin of Object.values(this.coins)) {

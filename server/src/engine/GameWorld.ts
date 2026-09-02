@@ -73,11 +73,13 @@ export class GameWorld {
     this.contractsAndRaidEngine = new ContractsAndRaidEngine(this);
     this.darkChatEngine = new DarkChatEngine();
 
-    this.startMiningTicker();
-    this.startWorldNewsTicker();
-    this.startNpcSecurityTicker();
-    this.startVpsAndInvasionTicker();
-    this.startSpywareSnifferTicker();
+    if (process.env.NODE_ENV !== 'test') {
+      this.startMiningTicker();
+      this.startWorldNewsTicker();
+      this.startNpcSecurityTicker();
+      this.startVpsAndInvasionTicker();
+      this.startSpywareSnifferTicker();
+    }
   }
 
   public getOrCreatePlayer(userId: string): Player {
@@ -409,6 +411,17 @@ export class GameWorld {
     usdAmount?: number,
     coinAmount?: number
   ): { success: boolean; message: string } {
+    // Security check: Validate trading amounts to prevent type confusion, non-finite values (NaN/Infinity), or negative balance exploits
+    if (usdAmount !== undefined && (typeof usdAmount !== 'number' || !Number.isFinite(usdAmount) || usdAmount <= 0)) {
+      return { success: false, message: 'Valor em USD para negociação inválido.' };
+    }
+    if (coinAmount !== undefined && (typeof coinAmount !== 'number' || !Number.isFinite(coinAmount) || coinAmount <= 0)) {
+      return { success: false, message: 'Quantidade de criptomoeda para negociação inválida.' };
+    }
+    if (usdAmount === undefined && coinAmount === undefined) {
+      return { success: false, message: 'Informe o valor em USD ou a quantidade de moedas.' };
+    }
+
     const player = this.getOrCreatePlayer(userId);
     const coin = this.cryptoEngine.getCoin(coinId);
     if (!coin) return { success: false, message: 'Criptomoeda não encontrada no mercado.' };
