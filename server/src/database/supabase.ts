@@ -258,8 +258,15 @@ export const dbHelpers = {
     return { userId, player };
   },
 
-  getUserByUsername: (username: string): UserRow | undefined =>
-    Array.from(users.values()).find(u => u.username.toLowerCase() === username.toLowerCase()),
+  getUserByUsername: (username: string): UserRow | undefined => {
+    const targetUsername = username.toLowerCase();
+    for (const user of users.values()) {
+      if (user.username.toLowerCase() === targetUsername) {
+        return user;
+      }
+    }
+    return undefined;
+  },
 
   getUserById: (userId: string): UserRow | undefined => users.get(userId),
 

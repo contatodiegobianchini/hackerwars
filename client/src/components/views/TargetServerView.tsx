@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../stores/useGameStore.js';
+import { useBankActions } from '../../hooks/useBankActions.js';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -34,11 +35,15 @@ export const TargetServerView: React.FC = () => {
     disconnectTarget,
     deleteRemoteFile,
     wipeRemoteLogs,
-    bankTransfer,
-    siphonVictimCrypto,
-    siphonVictimAccount,
     setCurrentView
   } = useGameStore();
+
+  const {
+    handleMassBankHeist,
+    handleBankHeist,
+    handleSiphonAccount,
+    handleSiphonCrypto,
+  } = useBankActions();
 
   const [subTab, setSubTab] = useState<'attack' | 'files' | 'logs' | 'bank'>('attack');
 
@@ -72,8 +77,8 @@ export const TargetServerView: React.FC = () => {
   const crackerVersion = playerCracker?.version || 1.0;
   const hasherVersion = activeConnection.security.hasherLevel;
 
-  const playerMiner = player.software.find(s => s.type === 'miner');
   const playerBotnet = player.software.find(s => s.type === 'ddos');
+  const playerMiner = player.software.find(s => s.type === 'miner');
   const playerSpyware = player.software.find(s => s.type === 'spyware');
 
   const existingMiner = activeConnection.activeMiners?.find(m => m.ownerId === player.id);
@@ -106,15 +111,6 @@ export const TargetServerView: React.FC = () => {
     });
   };
 
-  const handleMassBankHeist = () => {
-    if (confirm(`🚨 ALERTA MÁXIMO DE SEGURANÇA BANCÁRIA:\n\nExecutar o Mega-Assalto à Database Central de ${activeConnection.hostname} irá desviar todos os fundos de clientes e do cofre central de uma vez só!\n\nNo entanto, o FBI / INTERPOL DEFLAGRARÁ UM MANDADO DE PRISÃO IMEDIATAMENTE e você terá 45 segundos para se defender!\n\nDeseja prosseguir com o assalto agora?`)) {
-      startProcess('mass_bank_heist', {
-        targetIp: activeConnection.ip,
-        targetFileName: `Infiltrando Database Central & Mega-Assalto em ${activeConnection.hostname}`,
-      });
-    }
-  };
-
   const handleDownload = (file: SoftwareItem) => {
     startProcess('download', {
       targetIp: activeConnection.ip,
@@ -134,13 +130,6 @@ export const TargetServerView: React.FC = () => {
       targetFileName: `CryptoMinerX v${playerMiner.version.toFixed(1)}`,
       details: { softwareId: playerMiner.id }
     });
-  };
-
-  const handleBankHeist = (victimAcc: any) => {
-    const playerAcc = player.bankAccounts[0];
-    if (playerAcc) {
-      bankTransfer(victimAcc.accountNumber, playerAcc.accountNumber, victimAcc.balance, activeConnection.ip);
-    }
   };
 
   return (
@@ -516,7 +505,7 @@ export const TargetServerView: React.FC = () => {
                           </div>
 
                           <button
-                            onClick={() => siphonVictimAccount(activeConnection.ip, acc.accountNumber)}
+                            onClick={() => handleSiphonAccount(acc.accountNumber)}
                             disabled={acc.balance <= 0}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm ${
                               acc.balance > 0
@@ -554,7 +543,7 @@ export const TargetServerView: React.FC = () => {
                           </div>
 
                           <button
-                            onClick={() => siphonVictimCrypto(activeConnection.ip, w.address)}
+                            onClick={() => handleSiphonCrypto(w.address)}
                             className="bg-amber-500 hover:bg-amber-600 text-black px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
                           >
                             Drenar BTC

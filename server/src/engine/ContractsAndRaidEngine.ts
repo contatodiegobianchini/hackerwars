@@ -416,6 +416,7 @@ export class ContractsAndRaidEngine {
   }
 
   private startAuctionTicker() {
+    if (process.env.NODE_ENV === 'test') return;
     // NPC bot bidding simulation every 40s
     setInterval(() => {
       for (const auc of this.auctions) {
@@ -425,6 +426,6 @@ export class ContractsAndRaidEngine {
           auc.minNextBidUsd = Math.round(auc.currentBidUsd * 1.15);
         }
       }
-    }, 40000);
+    }, 40000).unref();
   }
 }
