@@ -1,0 +1,7 @@
+[data-zone] { --signal: var(--signal-primary); --signal-rgb: 85, 214, 141; }
+[data-zone='network'] { --signal: var(--signal-network); --signal-rgb: 55, 185, 210; }
+[data-zone='operations'] { --signal: var(--signal-operation); --signal-rgb: 154, 124, 255; }
+[data-zone='economy'] { --signal: var(--signal-economy); --signal-rgb: 227, 170, 72; }
+[data-zone='social'] { --signal: var(--signal-social); --signal-rgb: 239, 138, 85; }
+[data-zone='security'] { --signal: var(--signal-danger); --signal-rgb: 236, 100, 100; }
+[data-zone='infrastructure'] { --signal: var(--signal-infrastructure); --signal-rgb: 93, 157, 255; }
