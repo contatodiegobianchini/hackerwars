@@ -1,0 +1,293 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-black text-slate-100 antialiased font-sans select-none overflow-x-hidden;
+    background:
+      radial-gradient(circle at 78% -10%, rgba(72, 255, 160, 0.055), transparent 28%),
+      #090b0a;
+  }
+
+  ::selection {
+    background: rgba(255,255,255,0.14);
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0a0a0a;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2c2c2e;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #444448;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 1px solid rgba(255,255,255,0.55);
+    outline-offset: 2px;
+  }
+}
+
+.app-shell {
+  background: #090b0a;
+}
+
+.auth-screen {
+  background:
+    linear-gradient(rgba(75, 105, 83, 0.075) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(75, 105, 83, 0.075) 1px, transparent 1px),
+    radial-gradient(circle at 16% 12%, rgba(35, 184, 95, 0.16), transparent 25%),
+    #080b09;
+  background-size: 36px 36px, 36px 36px, auto, auto;
+}
+
+.auth-panel {
+  background: #f1f3ee;
+  border: 1px solid #bec8bf;
+  border-radius: 4px;
+  box-shadow: 14px 14px 0 rgba(19, 37, 25, 0.6), 0 26px 80px rgba(0, 0, 0, 0.42);
+}
+
+.auth-topline {
+  background: #132218;
+  color: #9ed8ac;
+  border-bottom: 1px solid #31543d;
+}
+
+.auth-mode {
+  background: #dce2db;
+  border: 1px solid #c7d0c6;
+  border-radius: 4px;
+}
+
+.auth-mode button { border-radius: 2px; }
+.auth-submit { background: #173e27; border-radius: 3px; }
+
+/* A small set of deliberately hard edges and signal colors keeps the product
+   closer to an operations console than a generic dashboard. */
+.app-shell header,
+.app-shell aside {
+  background-color: #0c0f0d !important;
+  border-color: #222924 !important;
+}
+
+.app-shell aside button.rounded-xl,
+.app-shell header .rounded-xl {
+  border-radius: 4px !important;
+}
+
+.app-shell aside button[class*="bg-[#1c1c1e]"] {
+  background: #17251b !important;
+  box-shadow: inset 2px 0 0 #48c778;
+}
+
+.app-shell main[data-view] {
+  background-color: #101310 !important;
+  background-image:
+    linear-gradient(rgba(118, 137, 122, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(118, 137, 122, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 86% -5%, rgba(42, 185, 102, 0.075), transparent 30%) !important;
+  background-size: 32px 32px, 32px 32px, auto !important;
+}
+
+main[data-view="my_server"] {
+  background-image:
+    linear-gradient(rgba(118, 137, 122, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(118, 137, 122, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 88% 0%, rgba(45, 212, 128, 0.105), transparent 29%) !important;
+}
+
+.white-card {
+  @apply bg-white text-gray-900 border border-gray-200;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+/* Home is the player's machine room: fewer floating cards, more equipment rack. */
+main[data-view="my_server"] .bg-white {
+  background: #f2f4ef;
+  border-color: #d5dbd2;
+}
+main[data-view="my_server"] .bg-gray-50,
+main[data-view="my_server"] .bg-gray-100 {
+  background: #e7ebe5;
+}
+main[data-view="my_server"] .text-gray-900 { color: #142018; }
+main[data-view="my_server"] .text-gray-700 { color: #334036; }
+main[data-view="my_server"] .text-gray-500 { color: #617064; }
+main[data-view="my_server"] .bg-gray-700 { background: #1b8f51; }
+main[data-view="my_server"] .bg-emerald-50 { background: #dcefe1; }
+main[data-view="my_server"] .text-emerald-600 { color: #08733d; }
+
+.white-card-hover {
+  @apply bg-white text-gray-900 border border-gray-200 transition-all duration-150;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.white-card-hover:hover {
+  border-color: #d7d7da;
+  box-shadow: 0 5px 16px rgba(0,0,0,0.10);
+}
+
+.header-pill {
+  @apply bg-[#1c1c1e] text-slate-200 px-3 py-1.5 text-xs flex items-center space-x-1.5 border border-[#2c2c2e];
+  border-radius: 8px;
+}
+
+/* Restrained geometry to keep the interface closer to a crafted software product. */
+.rounded-2xl { border-radius: 10px !important; }
+.rounded-xl { border-radius: 8px !important; }
+.rounded-lg { border-radius: 7px !important; }
+.rounded-md { border-radius: 6px !important; }
+
+.shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.08) !important; }
+.shadow-md { box-shadow: 0 6px 18px rgba(0,0,0,0.11) !important; }
+.shadow-lg { box-shadow: 0 10px 26px rgba(0,0,0,0.16) !important; }
+.shadow-xl,
+.shadow-2xl { box-shadow: 0 14px 34px rgba(0,0,0,0.22) !important; }
+
+.font-mono { letter-spacing: -0.01em; }
+.rounded-full { border-radius: 9999px !important; }
+
+[class*="border-[#1c1c1e"] { border-color: #202124 !important; }
+[class*="border-[#2c2c2e"] { border-color: #303134 !important; }
+
+/*
+ * Contextual visual language.
+ * Each major area gets a quiet environmental tone instead of a second component library.
+ */
+main[data-view] {
+  position: relative;
+  background-color: #0a0a0a !important;
+  background-repeat: no-repeat;
+  background-attachment: local;
+}
+
+/* Datacenter: infrastructure console, cool green/cyan atmosphere. */
+main[data-view="datacenter"] {
+  background-image:
+    linear-gradient(rgba(16,185,129,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16,185,129,0.02) 1px, transparent 1px),
+    radial-gradient(circle at 85% 0%, rgba(16,185,129,0.08), transparent 30%);
+  background-size: 34px 34px, 34px 34px, auto;
+}
+main[data-view="datacenter"] .bg-white { background: #f8faf9; border-color: #d7e5df; }
+main[data-view="datacenter"] .bg-gray-50 { background: #f1f6f4; }
+
+/* Black Market: warm paper surfaces against a restrained burgundy field. */
+main[data-view="black_market"] {
+  background-image:
+    radial-gradient(circle at 92% 4%, rgba(127,29,29,0.16), transparent 28%),
+    radial-gradient(circle at 8% 78%, rgba(180,83,9,0.055), transparent 24%);
+}
+main[data-view="black_market"] .bg-white { background: #fbfaf7; border-color: #e4ddd2; }
+main[data-view="black_market"] .bg-gray-50 { background: #f5f2ec; }
+
+/* Missions: tactical workstation, cooler steel-blue environment. */
+main[data-view="missions"] {
+  background-image:
+    linear-gradient(180deg, rgba(30,64,175,0.075), transparent 26%),
+    radial-gradient(circle at 100% 0%, rgba(59,130,246,0.07), transparent 24%);
+}
+main[data-view="missions"] .bg-white { background: #f8fafc; border-color: #d9e1eb; }
+main[data-view="missions"] .bg-gray-50 { background: #f2f5f9; }
+
+/* Campaign: narrative terminal with a cooler indigo-violet undertone. */
+main[data-view="campaign"] {
+  background-image:
+    radial-gradient(circle at 75% 0%, rgba(99,102,241,0.10), transparent 28%),
+    radial-gradient(circle at 10% 62%, rgba(124,58,237,0.045), transparent 22%);
+}
+main[data-view="campaign"] .bg-white { background: #faf9fc; border-color: #e2deea; }
+main[data-view="campaign"] .bg-gray-50 { background: #f5f3f8; }
+
+/* Target server: active operations, blue-green status lighting. */
+main[data-view="target_server"] {
+  background-image:
+    radial-gradient(circle at 95% 0%, rgba(14,165,233,0.07), transparent 23%),
+    radial-gradient(circle at 6% 15%, rgba(16,185,129,0.045), transparent 20%);
+}
+
+/* Reconnaissance board: subtle cyan grid. */
+main[data-view="known_servers"] {
+  background-image:
+    linear-gradient(90deg, rgba(14,165,233,0.025) 1px, transparent 1px),
+    linear-gradient(rgba(14,165,233,0.025) 1px, transparent 1px),
+    radial-gradient(circle at 88% 0%, rgba(14,165,233,0.08), transparent 26%);
+  background-size: 42px 42px, 42px 42px, auto;
+}
+
+/* Dark chat: almost-black IRC terminal with faint phosphor glow. */
+main[data-view="dark_chat"] {
+  background-image: radial-gradient(circle at 50% 0%, rgba(16,185,129,0.055), transparent 34%);
+}
+
+/* Clans: competitive territory board, subdued amber accent. */
+main[data-view="clans"] {
+  background-image:
+    radial-gradient(circle at 88% 0%, rgba(245,158,11,0.065), transparent 25%),
+    radial-gradient(circle at 0% 100%, rgba(245,158,11,0.035), transparent 20%);
+}
+
+/* Antivirus: security console with a restrained red warning atmosphere. */
+main[data-view="antivirus"] {
+  background-image: radial-gradient(circle at 92% 0%, rgba(239,68,68,0.055), transparent 25%);
+}
+
+/* Admin: privileged zone without turning the whole screen neon red. */
+main[data-view="admin_panel"] {
+  background-image:
+    linear-gradient(180deg, rgba(127,29,29,0.10), transparent 22%),
+    radial-gradient(circle at 100% 0%, rgba(220,38,38,0.07), transparent 25%);
+}
+
+/* Small visual anchor on major workspace frames. */
+main[data-view="datacenter"] > div::before,
+main[data-view="missions"] > div::before,
+main[data-view="campaign"] > div::before,
+main[data-view="black_market"] > div::before,
+main[data-view="known_servers"] > div::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 34px;
+  height: 2px;
+  border-radius: 2px;
+  opacity: 0.75;
+}
+main[data-view="datacenter"] > div::before { background: #059669; }
+main[data-view="missions"] > div::before { background: #2563eb; }
+main[data-view="campaign"] > div::before { background: #7c3aed; }
+main[data-view="black_market"] > div::before { background: #991b1b; }
+main[data-view="known_servers"] > div::before { background: #0891b2; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
