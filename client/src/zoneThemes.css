@@ -1,0 +1,163 @@
+/* HackerWars zone-specific visual language. Targets the actual view panels without changing game logic. */
+
+/* =========================
+   BLACK MARKET
+   ========================= */
+main[data-view="black_market"] {
+  --zone-accent: #9f1239;
+  --zone-paper: #fbfaf7;
+}
+
+main[data-view="black_market"] > div > div > div:first-child {
+  position: relative;
+  background: linear-gradient(135deg, #191514 0%, #0f0d0d 100%) !important;
+  color: #f5eee8 !important;
+  border: 1px solid #3a302d !important;
+  border-left: 3px solid var(--zone-accent) !important;
+  box-shadow: 0 16px 36px rgba(0,0,0,.28) !important;
+  overflow: hidden;
+}
+main[data-view="black_market"] > div > div > div:first-child::after {
+  content: "DARKNET // PRIVATE EXCHANGE";
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .16em;
+  color: #8e817c;
+}
+main[data-view="black_market"] > div > div > div:first-child h1 { color: #fff8f1 !important; }
+main[data-view="black_market"] > div > div > div:first-child p { color: #aaa09b !important; }
+main[data-view="black_market"] > div > div > div:first-child svg { color: #d6b1b9 !important; }
+
+main[data-view="black_market"] .bg-white {
+  background: var(--zone-paper) !important;
+  border-color: #e0d7d0 !important;
+  box-shadow: 0 8px 22px rgba(0,0,0,.12) !important;
+}
+main[data-view="black_market"] .bg-gray-50 { background: #f4f0eb !important; }
+main[data-view="black_market"] .bg-gray-100 { background: #ebe5df !important; }
+main[data-view="black_market"] .rounded-2xl,
+main[data-view="black_market"] .rounded-xl { border-radius: 6px !important; }
+main[data-view="black_market"] button[class*="bg-black"] {
+  border: 1px solid #332b29 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04) !important;
+}
+main[data-view="black_market"] .font-mono { letter-spacing: -.02em; }
+
+/* =========================
+   MISSIONS
+   ========================= */
+main[data-view="missions"] {
+  --zone-accent: #2563eb;
+}
+
+main[data-view="missions"] > div > div > div:first-child {
+  position: relative;
+  background: #111a28 !important;
+  color: #edf4ff !important;
+  border: 1px solid #2b3c55 !important;
+  border-left: 3px solid var(--zone-accent) !important;
+  box-shadow: 0 16px 36px rgba(3,15,35,.35) !important;
+}
+main[data-view="missions"] > div > div > div:first-child::after {
+  content: "OPS // CONTRACT DESK";
+  position: absolute;
+  right: 18px;
+  top: 14px;
+  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .15em;
+  color: #7e91ac;
+}
+main[data-view="missions"] > div > div > div:first-child h1 { color: #f4f8ff !important; }
+main[data-view="missions"] > div > div > div:first-child p { color: #9bacbf !important; }
+main[data-view="missions"] .bg-white {
+  background: #f8fafc !important;
+  border-color: #ccd7e3 !important;
+  border-left: 3px solid #8ba8cf !important;
+  box-shadow: 0 7px 18px rgba(7,22,43,.09) !important;
+}
+main[data-view="missions"] .bg-white:hover { border-left-color: #2563eb !important; }
+main[data-view="missions"] .bg-gray-50 { background: #eef3f8 !important; }
+main[data-view="missions"] .rounded-2xl { border-radius: 7px !important; }
+main[data-view="missions"] .rounded-xl { border-radius: 5px !important; }
+main[data-view="missions"] .rounded-full { border-radius: 9999px !important; }
+
+/* =========================
+   CAMPAIGN
+   ========================= */
+main[data-view="campaign"] {
+  --zone-accent: #7c3aed;
+}
+
+/* =========================
+   DATACENTER
+   ========================= */
+main[data-view="datacenter"] {
+  --zone-accent: #059669;
+}
+
+main[data-view="datacenter"] > div > div > div:first-child {
+  position: relative;
+  background: #111817 !important;
+  color: #effff8 !important;
+  border: 1px solid #29453d !important;
+  border-top: 3px solid #059669 !important;
+}
+main[data-view="datacenter"] > div > div > div:first-child::after {
+  content: "INFRASTRUCTURE // NODE CONTROL";
+  position: absolute;
+  right: 18px;
+  top: 15px;
+  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .14em;
+  color: #719489;
+}
+
+/* Runtime collection banner. */
+main[data-view="datacenter"] > div > div > div:nth-child(2) {
+  border: 1px solid rgba(52,211,153,.28) !important;
+  border-left: 3px solid #10b981 !important;
+  border-radius: 5px !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.2) !important;
+}
+
+/* LIVE nodes section header. */
+main[data-view="datacenter"] > div > div > div:nth-child(3) > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+main[data-view="datacenter"] > div > div > div:nth-child(3) > div:first-child::after {
+  content: "LIVE NODES";
+  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .14em;
+  color: #4f8f7c;
+}
+main[data-view="datacenter"] > div > div > div:nth-child(3) .grid > div,
+main[data-view="datacenter"] > div > div > div:nth-child(4) .grid > div {
+  border-radius: 5px !important;
+}
+main[data-view="datacenter"] > div > div > div:nth-child(3) .bg-white {
+  position: relative;
+  border: 1px solid #ccd9d4 !important;
+  border-top: 2px solid #90b9a8 !important;
+  background: #f8fbfa !important;
+}
+main[data-view="datacenter"] > div > div > div:nth-child(3) .bg-white::before {
+  content: "NODE";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font: 700 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .12em;
+  color: #78958b;
+}
+main[data-view="datacenter"] > div > div > div:nth-child(4) .bg-white {
+  background: #f8fbfa !important;
+  border: 1px solid #cfdbd7 !important;
+  border-top: 2px solid #6ea58f !important;
+}
+main[data-view="datacenter"] .rounded-2xl { border-radius: 6px !important; }
+main[data-view="datacenter"] .rounded-xl { border-radius: 5px !important; }
+
