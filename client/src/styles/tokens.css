@@ -1,0 +1,24 @@
+:root {
+  --bg-system: #080c0d;
+  --bg-panel: #0e1517;
+  --bg-panel-elevated: #131d20;
+  --bg-inset: #070a0b;
+  --signal-primary: #55d68d;
+  --signal-network: #37b9d2;
+  --signal-operation: #9a7cff;
+  --signal-economy: #e3aa48;
+  --signal-danger: #ec6464;
+  --signal-social: #ef8a55;
+  --signal-infrastructure: #5d9dff;
+  --border-subtle: rgba(174, 209, 199, .14);
+  --border-active: rgba(85, 214, 141, .72);
+  --text-primary: #edf7f2;
+  --text-secondary: #a5b7b0;
+  --text-muted: #668078;
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+}

@@ -1,0 +1,68 @@
+import { SoftwareItem } from '../../types/game.js';
+
+export const INITIAL_SOFTWARE: SoftwareItem[] = [
+  {
+    id: 'soft-crc-1',
+    name: 'CrackMaster',
+    type: 'cracker',
+    version: 1.0,
+    sizeMb: 12,
+    isInstalled: true,
+  },
+  {
+    id: 'soft-hsh-1',
+    name: 'SecureHash',
+    type: 'hasher',
+    version: 1.0,
+    sizeMb: 8,
+    isInstalled: true,
+  },
+  {
+    id: 'soft-fw-1',
+    name: 'AegisWall',
+    type: 'firewall',
+    version: 1.0,
+    sizeMb: 15,
+    isInstalled: true,
+  },
+  {
+    id: 'soft-scn-1',
+    name: 'NetScanPro',
+    type: 'portscan',
+    version: 1.0,
+    sizeMb: 5,
+    isInstalled: true,
+  },
+  {
+    id: 'soft-min-1',
+    name: 'CryptoMinerX',
+    type: 'miner',
+    version: 1.0,
+    sizeMb: 20,
+    isInstalled: true,
+  },
+  {
+    id: 'soft-ddos-1',
+    name: 'StormBotNet',
+    type: 'ddos',
+    version: 1.0,
+    sizeMb: 25,
+    isInstalled: true,
+  },
+  {
+    id: 'soft-av-1',
+    name: 'AegisScanner Pro',
+    type: 'antivirus',
+    version: 1.0,
+    sizeMb: 18,
+    isInstalled: true,
+  },
+  {
+    id: 'soft-spy-1',
+    name: 'ShadowStealer Pro',
+    type: 'spyware',
+    version: 1.0,
+    sizeMb: 14,
+    isInstalled: true,
+  },
+];
