@@ -1,0 +1,19 @@
+{
+  "name": "hacker-wars-game",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "build": "npm --prefix client ci && npm --prefix client run build",
+    "build:server": "npm --prefix server ci && npm --prefix server run build",
+    "build:vercel": "npm --prefix client ci && npm --prefix server ci && npm --prefix client run build && npm --prefix server run build",
+    "test": "npm --prefix server test",
+    "start": "npm --prefix server run start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

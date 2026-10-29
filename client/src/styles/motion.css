@@ -1,0 +1,4 @@
+@keyframes cyber-sweep { from { transform: translateX(-110%); } to { transform: translateX(220%); } }
+@keyframes cyber-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+.cyber-live { animation: cyber-pulse 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; scroll-behavior: auto !important; } }
