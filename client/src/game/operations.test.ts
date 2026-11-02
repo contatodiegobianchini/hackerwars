@@ -52,3 +52,24 @@ test('plant_virus contract without spyware points to the Black Market', () => {
   assert.equal(op.state, 'blocked');
   assert.equal(op.fix, 'black_market');
 });
+
+test('daily contract comes first, expired contracts disappear, accepted ones show style', () => {
+  const now = 1_000_000;
+  const base = { employer: 'E', type: 'wipe_server', rewardCrypto: 0, rewardRep: 1, description: '' };
+  const missions = [
+    { ...base, id: 'gen-old', title: 'Velho', targetIp: '1.1.1.1', rewardCash: 9000, expiresAt: now - 1 },
+    { ...base, id: 'gen-a', title: 'A', targetIp: '1.1.1.1', rewardCash: 9000, expiresAt: now + 60_000 },
+    { ...base, id: 'daily-x', title: 'Golpe do dia: B', targetIp: '1.1.1.1', rewardCash: 100, isDaily: true, expiresAt: now + 60_000 },
+  ] as any[];
+  const accepted = { ...base, id: 'gen-c', title: 'C', targetIp: '1.1.1.1', rewardCash: 1, acceptedAt: now - 100 } as any;
+  const ops = buildOperations({
+    player: player({ activeMissions: [accepted], tracedIps: { '1.1.1.1': now - 50 } }),
+    storyChapters: [], missions, contracts: [], servers: [server('1.1.1.1', 0.5)],
+  }, now);
+  assert.equal(ops.some(o => o.id === 'gen-old'), false);
+  const available = ops.filter(o => o.state === 'available');
+  assert.equal(available[0].id, 'daily-x');
+  const c = ops.find(o => o.id === 'gen-c')!;
+  assert.equal(c.style!.notTraced, false);
+  assert.equal(c.style!.clean, true);
+});

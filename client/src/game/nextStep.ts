@@ -201,7 +201,7 @@ export function suggestContracts({ player, missions, servers }: NextStepInput, l
   const taken = new Set([...(player.activeMissions || []).map(m => m.id), ...(player.completedMissionIds || [])]);
   const cracker = crackerVersion(player);
   return missions
-    .filter(m => !taken.has(m.id))
+    .filter(m => !taken.has(m.id) && (!m.expiresAt || m.expiresAt > Date.now()))
     .map(mission => ({ mission, server: servers.find(s => s.ip === mission.targetIp) }))
     .filter(({ mission, server }) => mission.type === 'ddos_target' || player.hackedIps.includes(mission.targetIp) || (server ? server.security.hasherLevel <= cracker : false))
     .sort((a, b) => b.mission.rewardCash - a.mission.rewardCash)

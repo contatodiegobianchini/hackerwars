@@ -27,7 +27,7 @@ test('steal_file mission: downloading the required file completes it, and it can
 
   engine.recordOperation(player, 'download', '192.168.10.15', 'receita_secreta_molho_especial.txt');
   assert.equal(engine.claimMission(player, 'mis-1').success, true);
-  assert.equal(player.cash, 500);
+  assert.equal(player.cash, 750); // 3 stars: +50%
 
   // Cannot re-accept and re-claim the same contract.
   assert.equal(engine.acceptMission(player, 'mis-1').success, false);
@@ -191,4 +191,76 @@ test('trace heat: noisy actions cost more seconds', async () => {
   assert.ok(traceHeatSeconds('mass_bank_heist') > traceHeatSeconds('crack'));
   assert.ok(traceHeatSeconds('download', 500) > traceHeatSeconds('download', 5));
   assert.equal(traceHeatSeconds('download', 5000), 20);
+});
+
+const boardServers: any[] = [
+  { ip: '10.0.0.1', hostname: 'easy-a', type: 'personal', security: { hasherLevel: 1 }, files: [{ name: 'a.txt' }], logs: [] },
+  { ip: '10.0.0.2', hostname: 'easy-b', type: 'university', security: { hasherLevel: 2 }, files: [], logs: [] },
+  { ip: '10.0.0.3', hostname: 'mid-a', type: 'corporate', security: { hasherLevel: 8 }, files: [{ name: 'm.pdf' }], logs: [] },
+  { ip: '10.0.0.4', hostname: 'mid-b', type: 'corporate', security: { hasherLevel: 12 }, files: [], logs: [] },
+  { ip: '10.0.0.5', hostname: 'hard', type: 'bank', security: { hasherLevel: 22 }, files: [], logs: [] },
+  { ip: '10.0.0.6', hostname: 'elite', type: 'government', security: { hasherLevel: 40 }, files: [], logs: [] },
+  { ip: '10.0.0.7', hostname: 'trap', type: 'honeypot', security: { hasherLevel: 1 }, files: [], logs: [] },
+];
+
+test('contract board: fills every tier, adds one daily, never uses honeypots, replaces expired', async () => {
+  const { refreshBoard, dayKey, CONTRACT_TTL_MS } = await import('./engine/contractBoard.js');
+  const now = Date.parse('2026-11-03T15:00:00Z');
+  const board = refreshBoard([], boardServers, now);
+  const daily = board.filter(m => m.isDaily);
+  assert.equal(daily.length, 1);
+  assert.equal(daily[0].dayKey, dayKey(now));
+  const generated = board.filter(m => !m.isDaily);
+  assert.equal(generated.length, 6);
+  assert.ok(generated.every(m => m.targetIp !== '10.0.0.7'));
+  assert.ok(generated.some(m => m.difficulty === 'Easy'));
+
+  // Same daily for everyone on the same day (deterministic), a new one the next day.
+  assert.equal(refreshBoard([], boardServers, now)[0].id, board.find(m => m.isDaily)!.id);
+  const later = refreshBoard(board, boardServers, now + CONTRACT_TTL_MS + 3600_000);
+  assert.ok(later.filter(m => !m.isDaily).every(m => m.expiresAt! > now + CONTRACT_TTL_MS));
+  const tomorrow = refreshBoard(board, boardServers, now + 24 * 3600_000);
+  assert.notEqual(tomorrow.find(m => m.isDaily)!.dayKey, dayKey(now));
+});
+
+test('style stars: traced and dirty contracts lose stars and pay less', async () => {
+  const { HUNT_FEATURE_START } = await import('./engine/HuntEngine.js');
+  const engine = new MissionEngine();
+  const clean = makePlayer();
+  clean.ip = '1.1.1.1';
+  engine.acceptMission(clean, 'mis-1');
+  clean.software.push({ name: 'receita_secreta_molho_especial.txt', sizeMb: 1 });
+  const server: any = { ip: '192.168.10.15', logs: [] };
+  const r1 = engine.claimMission(clean, 'mis-1', () => server);
+  assert.match(r1.message, /★★★/);
+  assert.equal(clean.cash, 750); // 500 * 1.5
+
+  const dirty = makePlayer();
+  dirty.ip = '2.2.2.2';
+  engine.acceptMission(dirty, 'mis-1');
+  dirty.software.push({ name: 'receita_secreta_molho_especial.txt', sizeMb: 1 });
+  dirty.tracedIps = { '192.168.10.15': Date.now() + 1000 };
+  const dirtyServer: any = { ip: '192.168.10.15', logs: [{ id: 'x', timestamp: Math.max(Date.now(), HUNT_FEATURE_START) + 5, ip: '2.2.2.2', action: '' }] };
+  const r2 = engine.claimMission(dirty, 'mis-1', () => dirtyServer);
+  assert.match(r2.message, /★☆☆/);
+  assert.equal(dirty.cash, 500);
+});
+
+test('daily streak grows on consecutive days and resets after a gap', async () => {
+  const { makeContract, streakBonus } = await import('./engine/contractBoard.js');
+  const engine = new MissionEngine();
+  const p = makePlayer();
+  const claimDaily = (key: string) => {
+    const m = makeContract(boardServers[0], () => 0, { id: `daily-${key}`, isDaily: true, dayKey: key, rewardBoost: 3 });
+    (engine as any).availableMissions.push(m);
+    engine.acceptMission(p, m.id);
+    p.missionProgress = { ...(p.missionProgress || {}), [m.id]: true };
+    engine.claimMission(p, m.id);
+  };
+  claimDaily('2026-11-01');
+  claimDaily('2026-11-02');
+  assert.equal(p.dailyStreak.count, 2);
+  claimDaily('2026-11-05');
+  assert.equal(p.dailyStreak.count, 1);
+  assert.equal(streakBonus(6), 0.5);
 });

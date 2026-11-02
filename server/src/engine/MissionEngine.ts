@@ -1,6 +1,6 @@
 import { Mission, MissionDifficulty, MissionType, Player, VirtualServer } from '../types/game.js';
 import { GameWorld } from './GameWorld.js';
-import { v4 as uuidv4 } from 'uuid';
+import { makeContract, previousDayKey, rateStyle, refreshBoard, STAR_BONUS, streakBonus } from './contractBoard.js';
 
 export type ServerLookup = (ip: string) => VirtualServer | undefined;
 
@@ -120,12 +120,14 @@ export class MissionEngine {
    */
   public getPlayerMissions(player?: Player): Mission[] {
     const completed = new Set(player?.completedMissionIds || []);
-    return this.getAvailableMissions().filter(m => !completed.has(m.id));
+    const now = Date.now();
+    return this.getAvailableMissions().filter(m => !completed.has(m.id) && (!m.expiresAt || m.expiresAt > now));
   }
 
   public acceptMission(player: Player, id: string, getServer?: ServerLookup): { success: boolean; mission?: Mission; message: string } {
     const mission = this.getMissionById(id);
     if (!mission || mission.status !== 'available') return { success: false, message: 'Missão não encontrada ou indisponível.' };
+    if (mission.expiresAt && mission.expiresAt <= Date.now()) return { success: false, message: 'Este contrato expirou. Novos contratos aparecem no quadro.' };
     player.activeMissions = player.activeMissions || [];
     player.completedMissionIds = player.completedMissionIds || [];
     if (player.completedMissionIds.includes(id)) return { success: false, message: 'Você já concluiu este contrato.' };
@@ -224,17 +226,50 @@ export class MissionEngine {
     if (!this.isMissionComplete(player, mission)) {
       return { success: false, mission, message: `Objetivo ainda não concluído: ${mission.title}. Execute a operação exigida no alvo ${mission.targetIp} depois de aceitar o contrato.` };
     }
-    player.cash += mission.rewardCash;
+    // Style: +25% per extra star (not traced, no tracks left).
+    const style = rateStyle(player, mission, getServer?.(mission.targetIp));
+    let multiplier = 1 + (style.stars - 1) * STAR_BONUS;
+    let streakNote = '';
+    if (mission.isDaily && mission.dayKey) {
+      const prev = player.dailyStreak;
+      const count = prev?.dayKey === mission.dayKey ? prev.count
+        : prev?.dayKey === previousDayKey(mission.dayKey) ? prev.count + 1 : 1;
+      player.dailyStreak = { dayKey: mission.dayKey, count };
+      const bonus = streakBonus(count);
+      multiplier += bonus;
+      streakNote = count > 1 ? ` Sequência de ${count} dias: +${Math.round(bonus * 100)}%.` : ' Primeiro dia da sequência.';
+    }
+    const cash = Math.round(mission.rewardCash * multiplier);
+    const btc = Number((mission.rewardCrypto * multiplier).toFixed(6));
+    const rep = Math.round(mission.rewardRep * multiplier);
+
+    player.cash += cash;
     if (!player.cryptoWallet) player.cryptoWallet = { btc: 0, eth: 0, doge: 0, shdw: 0, pepe: 0 };
-    player.cryptoWallet.btc = Number(((player.cryptoWallet.btc || 0) + mission.rewardCrypto).toFixed(6));
+    player.cryptoWallet.btc = Number(((player.cryptoWallet.btc || 0) + btc).toFixed(6));
     player.crypto = player.cryptoWallet.btc;
-    player.reputation += mission.rewardRep;
+    player.reputation += rep;
     const completedMission: Mission = { ...mission, status: 'completed' };
     player.activeMissions.splice(index, 1);
     player.completedMissionIds = player.completedMissionIds || [];
     if (!player.completedMissionIds.includes(id)) player.completedMissionIds.push(id);
     if (player.missionProgress) delete player.missionProgress[id];
-    return { success: true, mission: completedMission, message: `Missão concluída! +$${mission.rewardCash.toLocaleString()} USD, +${mission.rewardCrypto} BTC e +${mission.rewardRep} REP.` };
+    player.missionStars = player.missionStars || {};
+    player.missionStars[id] = style.stars;
+
+    const starsText = '★'.repeat(style.stars) + '☆'.repeat(3 - style.stars);
+    const missed = [!style.notTraced ? 'você foi rastreado' : '', !style.clean ? 'deixou rastros nos logs' : ''].filter(Boolean).join(' e ');
+    return {
+      success: true,
+      mission: completedMission,
+      message: `${starsText} Contrato entregue: +US$ ${cash.toLocaleString('pt-BR')}, +${btc} BTC e +${rep} de reputação.${missed ? ` Perdeu estrela porque ${missed}.` : ''}${streakNote}`,
+    };
+  }
+
+  /** Drops expired rotating contracts and tops up the board (and today's daily). */
+  public refreshBoard(servers: VirtualServer[], now = Date.now()): boolean {
+    const before = this.availableMissions.map(m => m.id).join(',');
+    this.availableMissions = refreshBoard(this.availableMissions, servers, now);
+    return before !== this.availableMissions.map(m => m.id).join(',');
   }
 
   public completeMission(id: string): Mission | null {
@@ -251,50 +286,10 @@ export class MissionEngine {
    * be completed. Returns null when no suitable target exists.
    */
   public generateRandomMission(servers: VirtualServer[]): Mission | null {
-    const pick = <T>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
     const candidates = servers.filter(s => s && s.ip && s.type !== 'honeypot');
     if (candidates.length === 0) return null;
-
-    const options: Array<{ type: MissionType; server: VirtualServer; fileName?: string }> = [];
-    for (const server of candidates) {
-      const files = (server.files || []).filter(f => f?.name);
-      if (files.length > 0) options.push({ type: 'steal_file', server, fileName: pick(files).name });
-      options.push({ type: 'wipe_server', server });
-      options.push({ type: 'plant_virus', server });
-      if (server.type === 'bank') options.push({ type: 'hack_bank', server });
-    }
-    const choice = pick(options);
-    const { server } = choice;
-
-    const hasher = server.security?.hasherLevel || 1;
-    const diff: MissionDifficulty = hasher < 5 ? 'Easy' : hasher < 15 ? 'Medium' : hasher < 30 ? 'Hard' : 'Elite';
-    const rewardMultiplier = diff === 'Easy' ? 1 : diff === 'Medium' ? 2.5 : diff === 'Hard' ? 5 : 10;
-    const employers = ['Guerrilha da Pizza', 'Anti-Pear Resistance', 'Meme Cartel', 'NullByte Syndicate', 'RedTeam Anonymous'];
-    const emp = pick(employers);
-    const objective: Record<MissionType, string> = {
-      steal_file: `baixe o arquivo ${choice.fileName}`,
-      wipe_server: 'apague todos os logs de acesso',
-      plant_virus: 'implante um Spyware',
-      hack_bank: 'execute o Mega-Assalto à database central',
-      ddos_target: 'derrube o servidor com um DDoS',
-      trace_hacker: 'obtenha acesso ROOT',
-    };
-
-    const mission: Mission = {
-      id: `mis-${uuidv4().substring(0, 8)}`,
-      title: `Operação Secreta // ${emp}`,
-      employer: emp,
-      description: `Contrato de espionagem cibernética contra ${server.hostname} (${server.ip}): invada o servidor e ${objective[choice.type]}. Não esqueça de limpar os seus rastros.`,
-      type: choice.type,
-      targetIp: server.ip,
-      targetDomain: server.domain,
-      requiredFileName: choice.fileName,
-      rewardCash: Math.round(750 * rewardMultiplier),
-      rewardCrypto: Number((0.015 * rewardMultiplier).toFixed(4)),
-      rewardRep: Math.round(120 * rewardMultiplier),
-      difficulty: diff,
-      status: 'available',
-    };
+    const server = candidates[Math.floor(Math.random() * candidates.length)];
+    const mission = makeContract(server, Math.random);
     this.availableMissions.push(mission);
     return mission;
   }

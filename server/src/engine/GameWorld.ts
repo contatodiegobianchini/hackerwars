@@ -89,6 +89,7 @@ export class GameWorld {
       this.startVpsAndInvasionTicker();
       this.startSpywareSnifferTicker();
       this.startHuntTicker();
+      this.startContractBoardTicker();
     }
   }
 
@@ -571,6 +572,8 @@ export class GameWorld {
       hops,
       vpnDelay,
       (tracedServer) => {
+        // Remembered for the "not traced" style star on contracts.
+        player.tracedIps = { ...(player.tracedIps || {}), [tracedServer.ip]: Date.now() };
         if (tracedServer.type === 'cartel') {
           // CARTEL RETALIATION JUMPSCARE & 5-MIN LOCKDOWN!
           const durationMs = 5 * 60 * 1000; // 5 minutes
@@ -628,6 +631,18 @@ export class GameWorld {
   private isOnline(userId: string): boolean {
     const io = (this.proxyTraceEngine as any)['io'];
     return (io?.sockets?.adapter?.rooms?.get(userId)?.size || 0) > 0;
+  }
+
+  private startContractBoardTicker() {
+    const refresh = () => {
+      if (this.missionEngine.refreshBoard(Array.from(this.servers.values()))) {
+        const io = (this.proxyTraceEngine as any)['io'];
+        io?.emit('missions_update', { missions: this.missionEngine.getAvailableMissions() });
+      }
+    };
+    refresh();
+    const timer = setInterval(refresh, 60_000);
+    timer.unref?.();
   }
 
   private startHuntTicker() {

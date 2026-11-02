@@ -26,6 +26,21 @@ export interface Operation {
   /** What fixes the blocker. */
   fix?: 'software' | 'black_market';
   objectives: OperationObjective[];
+  /** Rotating contracts expire; the daily one ends at midnight. */
+  expiresAt?: number;
+  isDaily?: boolean;
+  /** Style stars in progress (accepted contracts only). */
+  style?: { notTraced: boolean; clean: boolean };
+}
+
+/** Same rule as server/src/engine/contractBoard.ts rateStyle. */
+export function previewStyle(player: Player, mission: Mission, server?: VirtualServer) {
+  const since = mission.acceptedAt || 0;
+  const tracedAt = player.tracedIps?.[mission.targetIp] || 0;
+  const notTraced = tracedAt === 0 || tracedAt < since;
+  const tracks = (server?.logs || []).filter(l => l.timestamp >= since && (l.ip === player.ip || l.action?.includes(player.ip)));
+  const hunted = (player.pendingHunts || []).some(h => h.ip === mission.targetIp);
+  return { notTraced, clean: tracks.length === 0 && !hunted };
 }
 
 const v = (n: number) => `v${n.toFixed(1).replace('.', ',')}`;
@@ -79,7 +94,7 @@ const STATE_ORDER: Record<OperationState, number> = { ready: 0, active: 1, avail
 const KIND_ORDER: Record<OperationKind, number> = { story: 0, contract: 1, syndicate: 2 };
 
 /** One list for story chapters, contracts and Syndicate jobs, with what blocks each one. */
-export function buildOperations({ player, storyChapters, missions, contracts, servers }: OperationsInput): Operation[] {
+export function buildOperations({ player, storyChapters, missions, contracts, servers }: OperationsInput, now = Date.now()): Operation[] {
   const cracker = crackerVersion(player);
   const serverOf = (ip?: string) => (ip ? servers.find(s => s.ip === ip) : undefined);
   const hasSoftware = (type: string) => player.software.some(s => s.type === type);
@@ -121,7 +136,7 @@ export function buildOperations({ player, storyChapters, missions, contracts, se
   const completedIds = new Set(player.completedMissionIds || []);
   const missionList: Array<{ mission: Mission; accepted: boolean }> = [
     ...active.map(mission => ({ mission, accepted: true })),
-    ...missions.filter(m => !activeIds.has(m.id) && !completedIds.has(m.id)).map(mission => ({ mission, accepted: false })),
+    ...missions.filter(m => !activeIds.has(m.id) && !completedIds.has(m.id) && (!m.expiresAt || m.expiresAt > now)).map(mission => ({ mission, accepted: false })),
   ];
   for (const { mission, accepted } of missionList) {
     const ready = accepted && !!player.missionProgress?.[mission.id];
@@ -149,6 +164,9 @@ export function buildOperations({ player, storyChapters, missions, contracts, se
         ...(needsBreach ? [{ text: 'Invadir o servidor', done: player.hackedIps.includes(mission.targetIp) }] : []),
         { text: MISSION_ACTION[mission.type](mission), done: ready },
       ],
+      expiresAt: accepted ? undefined : mission.expiresAt,
+      isDaily: mission.isDaily,
+      style: accepted ? previewStyle(player, mission, serverOf(mission.targetIp)) : undefined,
     });
   }
 
@@ -183,6 +201,7 @@ export function buildOperations({ player, storyChapters, missions, contracts, se
 
   return ops.sort((a, b) =>
     STATE_ORDER[a.state] - STATE_ORDER[b.state]
+    || Number(!!b.isDaily) - Number(!!a.isDaily)
     || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
     || (a.kind === 'story' ? a.id.localeCompare(b.id, undefined, { numeric: true }) : b.rewardCash - a.rewardCash));
 }
