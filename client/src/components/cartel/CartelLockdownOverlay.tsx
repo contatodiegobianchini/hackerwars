@@ -53,7 +53,7 @@ export const CartelLockdownOverlay: React.FC = () => {
   // 1. Jumpscare Fullscreen Video Modal
   if (isJumpscareVideoPlaying) {
     return (
-      <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center select-none overflow-hidden animate-fade-in">
+      <div className="fixed inset-0 z-[100] bg-ink flex items-center justify-center select-none overflow-hidden animate-fade-in">
         <div className="absolute inset-0 bg-red-950/20 pointer-events-none z-10 animate-pulse" />
 
         <video
@@ -69,7 +69,7 @@ export const CartelLockdownOverlay: React.FC = () => {
         {/* Skip button fallback after 5s in case video hangs */}
         <button
           onClick={handleVideoEnded}
-          className="absolute bottom-6 right-6 z-20 bg-black/60 hover:bg-black/90 text-white/70 hover:text-white px-4 py-2 rounded-xl text-xs font-mono backdrop-blur-sm border border-white/10 transition"
+          className="absolute bottom-6 right-6 z-20 bg-ink/60 hover:bg-ink/90 text-white/70 hover:text-white px-4 py-2 rounded-xl text-xs font-mono backdrop-blur-sm border border-white/10 transition"
         >
           Pular para a Encolha ➔
         </button>

@@ -17,7 +17,7 @@ export const TaskProgressPopup: React.FC = () => {
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-2">
-          <Activity className="w-4 h-4 text-black animate-pulse" />
+          <Activity className="w-4 h-4 text-amber-500 animate-pulse" />
           <span className="text-xs font-bold text-gray-900">
             {processes.length > 1 ? `${processes.length} Tarefas em Andamento` : 'Tarefa em Execução'}
           </span>
