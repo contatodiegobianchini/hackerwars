@@ -35,6 +35,11 @@ export function setupSocketListeners(
     if (!currentUserId) return socket.disconnect(true);
 
     const sendInitState = (userId: string) => {
+      // Existing contracts whose objective is already met (e.g. file downloaded
+      // before accepting) show up as ready to deliver.
+      if (gameWorld.missionEngine.syncProgress(gameWorld.getPlayer(userId), ip => gameWorld.getServer(ip))) {
+        gameWorld.savePlayerState(userId);
+      }
       socket.emit('init_state', {
         player: gameWorld.getPlayer(userId),
         servers: gameWorld.getDiscoveredServers(userId),

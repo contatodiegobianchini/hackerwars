@@ -26,7 +26,7 @@ export function registerProcessHandlers(
   });
 
   socket.on('accept_mission', ({ missionId }: { missionId: string }) => {
-    const result = gameWorld.missionEngine.acceptMission(gameWorld.getPlayer(currentUserId), missionId);
+    const result = gameWorld.missionEngine.acceptMission(gameWorld.getPlayer(currentUserId), missionId, ip => gameWorld.getServer(ip));
     if (result.success) gameWorld.savePlayerState(currentUserId);
     socket.emit('mission_accepted', {
       ...result,
@@ -36,8 +36,8 @@ export function registerProcessHandlers(
   });
 
   socket.on('claim_mission', ({ missionId }: { missionId: string }) => {
-    const result = gameWorld.missionEngine.claimMission(gameWorld.getPlayer(currentUserId), missionId);
-    if (result.success) gameWorld.savePlayerState(currentUserId);
+    const result = gameWorld.missionEngine.claimMission(gameWorld.getPlayer(currentUserId), missionId, ip => gameWorld.getServer(ip));
+    gameWorld.savePlayerState(currentUserId);
     socket.emit('mission_claimed', {
       ...result,
       player: gameWorld.getPlayer(currentUserId),
