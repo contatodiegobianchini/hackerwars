@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-process.env.SUPABASE_URL ||= 'http://127.0.0.1:1';
-process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'test-key';
+process.env.DATABASE_URL ||= 'postgres://test:test@127.0.0.1:1/test';
 
 const { MissionEngine } = await import('./engine/MissionEngine.js');
 const { StoryEngine } = await import('./engine/StoryEngine.js');

@@ -78,7 +78,7 @@ O arquivo `.shardcloud` já está configurado. No primeiro boot, `scripts/shardc
 
 1. Suba o projeto (zip/Git) na ShardCloud. Ajuste `SUBDOMAIN` e `MEMORY` no `.shardcloud` se precisar (o build precisa de ~1GB; depois pode reduzir).
 2. Configure as variáveis de ambiente no painel:
-   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+   - `DATABASE_URL` (connection string do Postgres, ex.: banco criado na própria ShardCloud). As tabelas são criadas automaticamente no primeiro boot.
    - `JWT_SECRET` (mín. 32 caracteres), `ADMIN_PASSWORD` (mín. 20 caracteres)
    - `FRONTEND_ORIGIN` = URL pública do app (ex.: `https://hackerwars.shardweb.app`) — necessário para o CORS dos POSTs.
 3. A porta vem de `PORT` (o servidor já respeita).
