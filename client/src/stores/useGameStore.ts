@@ -89,6 +89,10 @@ interface GameState {
   contracts: DarknetContract[];
   auctions: DarknetAuctionItem[];
   isTerminalOpen: boolean;
+  isChatOpen: boolean;
+  chatSeenCount: number;
+  setChatOpen: (open: boolean) => void;
+  toggleChat: () => void;
   isJumpscareVideoPlaying: boolean;
   isSoundtrackPlaying: boolean;
   isMobileMenuOpen: boolean;
@@ -195,6 +199,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   auctions: [],
   adminUsers: [],
   isTerminalOpen: false,
+  isChatOpen: false,
+  chatSeenCount: 0,
   isJumpscareVideoPlaying: false,
   isSoundtrackPlaying: true,
   isMobileMenuOpen: false,
@@ -205,9 +211,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   currentView: 'my_server',
 
   setCurrentView: (view) => {
+    // DarkIRC is a side panel available in every zone, not a page.
+    if (view === 'dark_chat') { get().setChatOpen(true); return; }
     sounds.click();
     set({ currentView: view, isMobileMenuOpen: false });
   },
+  setChatOpen: (open) => set(state => ({
+    isChatOpen: open,
+    isMobileMenuOpen: false,
+    chatSeenCount: state.darkChatChannels.reduce((n, c) => n + (c.messages?.length || 0), 0),
+  })),
+  toggleChat: () => { sounds.click(); get().setChatOpen(!get().isChatOpen); },
   setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
   toggleMobileMenu: () => { sounds.click(); set(state => ({ isMobileMenuOpen: !state.isMobileMenuOpen })); },
   toggleTerminal: () => { sounds.click(); set(state => ({ isTerminalOpen: !state.isTerminalOpen })); },

@@ -12,7 +12,7 @@ export const PoliceRaidAlert: React.FC = () => {
   const canAffordJammer = vpnTier >= 3 || (player ? player.cash >= 4000 : false);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/85 backdrop-blur-md animate-fadeIn">
       <div className="bg-[#180a0c] border-2 border-red-600 rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-[0_0_80px_rgba(239,68,68,0.45)] text-white relative overflow-hidden">
         {/* Police Flashing Alert Header */}
         <div className="flex items-center space-x-3 mb-4">
@@ -44,7 +44,7 @@ export const PoliceRaidAlert: React.FC = () => {
         </div>
 
         {/* Countdown Timer */}
-        <div className="flex items-center justify-between bg-black/50 border border-red-500/20 rounded-2xl p-4 mb-6">
+        <div className="flex items-center justify-between bg-ink/50 border border-red-500/20 rounded-2xl p-4 mb-6">
           <div className="flex items-center space-x-2 text-gray-300 text-xs">
             <Clock className="w-4 h-4 text-red-400" />
             <span>Tempo até arrombamento da porta:</span>
@@ -63,7 +63,7 @@ export const PoliceRaidAlert: React.FC = () => {
             className={`w-full p-4 rounded-2xl border flex items-center justify-between transition ${
               canAffordBribe
                 ? 'bg-red-900/30 hover:bg-red-900/50 border-red-500/50 text-white shadow-lg'
-                : 'bg-black/30 border-red-900/30 text-gray-500 cursor-not-allowed opacity-60'
+                : 'bg-ink/30 border-red-900/30 text-gray-500 cursor-not-allowed opacity-60'
             }`}
           >
             <div className="flex items-center space-x-3 text-left">
@@ -108,7 +108,7 @@ export const PoliceRaidAlert: React.FC = () => {
             className={`w-full p-4 rounded-2xl border flex items-center justify-between transition ${
               canAffordJammer
                 ? 'bg-blue-950/40 hover:bg-blue-900/50 border-blue-500/40 text-white shadow-lg'
-                : 'bg-black/30 border-blue-900/30 text-gray-500 cursor-not-allowed opacity-60'
+                : 'bg-ink/30 border-blue-900/30 text-gray-500 cursor-not-allowed opacity-60'
             }`}
           >
             <div className="flex items-center space-x-3 text-left">

@@ -268,7 +268,7 @@ export const ClansView: React.FC = () => {
 
       {/* Create Clan Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-ink/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white text-gray-900 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-gray-100 space-y-4">
             <h2 className="text-base font-bold text-gray-900">Fundar Novo Clã Hacker</h2>
             <p className="text-xs text-gray-500">Taxa de registro na Darknet: <strong>$5.000 USD</strong></p>

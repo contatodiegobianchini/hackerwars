@@ -85,7 +85,7 @@ export const LeaderboardView: React.FC = () => {
                 </div>
 
                 <div className="col-span-4 flex items-center space-x-2 truncate">
-                  <span className={item.isPlayer ? 'text-black font-bold' : 'text-gray-900'}>{item.name}</span>
+                  <span className={item.isPlayer ? 'text-amber-500 font-bold' : 'text-gray-900'}>{item.name}</span>
                   {item.isPlayer && (
                     <span className="text-[10px] bg-black text-white px-1.5 py-0.2 rounded font-bold">VOCÊ</span>
                   )}
