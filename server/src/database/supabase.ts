@@ -1,19 +1,17 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { Player, VirtualServer, GlobalNewsItem, AdminUserData } from '../types/game.js';
+import { PgClient } from './pg-client.js';
 import { INITIAL_SERVERS, INITIAL_PLAYER, INITIAL_NEWS } from './defaultData.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const DATABASE_URL = process.env.DATABASE_URL;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('[Database] SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórios. O servidor não iniciará em modo somente memória.');
+if (!DATABASE_URL) {
+  throw new Error('[Database] DATABASE_URL (connection string do Postgres) é obrigatória. O servidor não iniciará em modo somente memória.');
 }
 
-export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+// Kept under the historical name so the persistence patches keep working unchanged.
+export const supabase = new PgClient(DATABASE_URL);
 
 type UserRow = {
   id: string;
@@ -44,7 +42,7 @@ const write = (promise: PromiseLike<unknown> | undefined): Promise<void> => {
     .then(() => undefined)
     .catch((error) => {
       lastWriteError = error instanceof Error ? error : new Error(String(error));
-      console.error('[Supabase write]', lastWriteError.message);
+      console.error('[DB write]', lastWriteError.message);
     });
 
   pendingWrites.add(task);
@@ -64,7 +62,7 @@ export async function flushWrites(): Promise<void> {
 
 // Flush frequently so a Render sleep/restart cannot leave recent player state only in RAM.
 const persistenceTimer = setInterval(() => {
-  void flushWrites().catch((error) => console.error('[Supabase flush]', error));
+  void flushWrites().catch((error) => console.error('[DB flush]', error));
 }, 1000);
 persistenceTimer.unref?.();
 
@@ -96,6 +94,7 @@ const buildPlayer = (userId: string, username: string): Player => {
 };
 
 export async function initializeSupabaseDb(): Promise<void> {
+  await supabase.ensureSchema();
   const [userResult, playerResult, serverResult, newsResult] = await Promise.all([
     supabase.from('game_users').select('*'),
     supabase.from('players').select('*'),
@@ -110,7 +109,7 @@ export async function initializeSupabaseDb(): Promise<void> {
     ['game_news', newsResult],
   ] as const) {
     if (result.error) {
-      throw new Error(`[Supabase Init] Falha ao carregar ${name}: ${result.error.message}`);
+      throw new Error(`[DB Init] Falha ao carregar ${name}: ${result.error.message}`);
     }
   }
 
@@ -415,7 +414,7 @@ export const db = {
 };
 
 const shutdown = async (signal: string) => {
-  console.log(`[Database] ${signal}: flushing pending Supabase writes...`);
+  console.log(`[Database] ${signal}: flushing pending DB writes...`);
   try {
     await flushWrites();
   } catch (error) {

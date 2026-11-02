@@ -6,17 +6,17 @@
   "scripts": {
     "dev": "tsx watch --import ./src/engine/gameworld-bank-index-patch.ts --import ./src/admin-socket-patch.ts --import ./src/proxy-chain-patch.ts --import ./src/spyware-balance-patch.ts --import ./src/player-persistence-patch.ts --import ./src/story-mission-patch.ts --import ./src/engine/miner-persistence-patch.ts --import ./src/engine/datacenter-persistence-patch.ts src/secure-server.ts",
     "build": "tsc",
-    "test": "tsx --test src/auth-ratelimit.test.ts src/spyware-lookup.test.ts src/trade-coin-validation.test.ts ../client/src/hooks/useAttacks.test.ts src/bank-transfer.test.ts src/mission-story.test.ts",
+    "test": "DATABASE_URL=${DATABASE_URL:-postgres://test:test@127.0.0.1:1/test} tsx --test src/auth-ratelimit.test.ts src/spyware-lookup.test.ts src/trade-coin-validation.test.ts ../client/src/hooks/useAttacks.test.ts src/bank-transfer.test.ts src/mission-story.test.ts",
     "start": "node --import ./dist/engine/gameworld-bank-index-patch.js --import ./dist/admin-socket-patch.js --import ./dist/proxy-chain-patch.js --import ./dist/spyware-balance-patch.js --import ./dist/player-persistence-patch.js --import ./dist/story-mission-patch.js --import ./dist/engine/miner-persistence-patch.js --import ./dist/engine/datacenter-persistence-patch.js dist/secure-server.js",
     "start:web": "node --import ./dist/engine/gameworld-bank-index-patch.js --import ./dist/admin-socket-patch.js --import ./dist/proxy-chain-patch.js --import ./dist/spyware-balance-patch.js --import ./dist/player-persistence-patch.js --import ./dist/story-mission-patch.js --import ./dist/engine/miner-persistence-patch.js --import ./dist/engine/datacenter-persistence-patch.js dist/serve-client.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.57.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "express-rate-limit": "^8.7.0",
     "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1",
     "socket.io": "^4.7.5",
     "uuid": "^9.0.1"
   },
@@ -26,6 +26,7 @@
     "@types/express-rate-limit": "^5.1.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.12.7",
+    "@types/pg": "^8.23.1",
     "@types/uuid": "^9.0.8",
     "tsx": "^4.7.2",
     "typescript": "^5.4.5"

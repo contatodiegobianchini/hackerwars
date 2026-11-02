@@ -81,7 +81,7 @@ const hydrateMinerPersistence = async () => {
     return;
   }
 
-  console.log(`[miner-persistence] restored ${minerCache.size} remote miners from Supabase`);
+  console.log(`[miner-persistence] restored ${minerCache.size} remote miners from Postgres`);
 };
 
 if (!dbHelpers.__minerPersistencePatched) {

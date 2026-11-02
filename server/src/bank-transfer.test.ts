@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { dbHelpers } from './database/sqlite.js';
+import './engine/gameworld-bank-index-patch.js';
 import { GameWorld } from './engine/GameWorld.js';
 import { VirtualServer } from './types/game.js';
 
