@@ -11,7 +11,9 @@
     "build:server": "npm --prefix server ci && npm --prefix server run build",
     "build:vercel": "npm --prefix client ci && npm --prefix server ci && npm --prefix client run build && npm --prefix server run build",
     "test": "npm --prefix server test",
-    "start": "npm --prefix server run start"
+    "start": "npm --prefix server run start",
+    "build:all": "npm --prefix client ci --include=dev && VITE_API_URL= npm --prefix client run build && npm --prefix server ci --include=dev && npm --prefix server run build",
+    "start:shard": "node scripts/shardcloud-start.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

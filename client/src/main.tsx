@@ -5,8 +5,11 @@ import './zoneThemes.css';
 import './socketRuntimeBridges.js';
 import './vpsRuntimeBridge.js';
 
-const BACKEND_URL = (import.meta.env.VITE_API_URL || 'https://hackerwars-api.onrender.com').replace(/\/$/, '');
-const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL || BACKEND_URL).replace(/\/$/, '');
+// VITE_API_URL=""  -> same-origin (API served together with the client, e.g. ShardCloud).
+// VITE_API_URL unset -> legacy default (Render API behind the Vercel frontend).
+const configuredApiUrl = import.meta.env.VITE_API_URL as string | undefined;
+const BACKEND_URL = (configuredApiUrl === undefined ? 'https://hackerwars-api.onrender.com' : configuredApiUrl || window.location.origin).replace(/\/$/, '');
+const SOCKET_URL = ((import.meta.env.VITE_SOCKET_URL as string | undefined) || BACKEND_URL).replace(/\/$/, '');
 
 const originalFetch = window.fetch.bind(window);
 window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {

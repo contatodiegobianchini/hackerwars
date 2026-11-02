@@ -1,0 +1,7 @@
+DISPLAY_NAME=HackerWars
+DESCRIPTION=Hacker Wars - jogo de simulacao hacker em tempo real
+MAIN=scripts/shardcloud-start.mjs
+MEMORY=1024
+VERSION=recommended
+SUBDOMAIN=hackerwars
+CUSTOM_COMMAND=npm run start:shard
