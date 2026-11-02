@@ -10,7 +10,7 @@ export interface Zone { id: ZoneId; label: string; hint: string; icon: LucideIco
 /** The five zones follow the game loop: discover → breach → exploit → vanish → invest. */
 export const ZONES: Zone[] = [
   { id: 'inicio', label: 'Início', hint: 'O que fazer agora', icon: Home, tabs: [
-    { view: 'my_server', label: 'Visão geral' },
+    { view: 'my_server', label: 'Próximo passo' },
     { view: 'processes', label: 'Processos' },
     { view: 'tutorial', label: 'Guia do jogo' },
   ] },
@@ -23,6 +23,7 @@ export const ZONES: Zone[] = [
     { view: 'missions', label: 'Contratos' },
   ] },
   { id: 'base', label: 'Base', hint: 'Sua máquina', icon: Cpu, tabs: [
+    { view: 'machine', label: 'Minha máquina' },
     { view: 'software', label: 'Software' },
     { view: 'hardware', label: 'Hardware' },
     { view: 'antivirus', label: 'Defesa' },

@@ -34,6 +34,8 @@ import { AdminPanelView } from './components/views/AdminPanelView.js';
 import { MobileBottomNav } from './components/layout/MobileBottomNav.js';
 import { ZoneTabs } from './components/layout/ZoneTabs.js';
 import { ChatDrawer } from './components/layout/ChatDrawer.js';
+import { TraceBar } from './components/layout/TraceBar.js';
+import { HomeView } from './components/views/HomeView.js';
 
 export const App: React.FC = () => {
   const {
@@ -86,7 +88,8 @@ export const App: React.FC = () => {
 
   const renderCurrentView = () => {
     switch (currentView) {
-      case 'my_server': return <MyServerView />;
+      case 'my_server': return <HomeView />;
+      case 'machine': return <MyServerView />;
       case 'target_server': return <TargetServerView />;
       case 'software': return <SoftwareListView />;
       case 'processes': return <ProcessQueueView />;
@@ -104,13 +107,14 @@ export const App: React.FC = () => {
       case 'leaderboard': return <LeaderboardView />;
       case 'tutorial': return <TutorialView />;
       case 'admin_panel': return <AdminPanelView />;
-      default: return <MyServerView />;
+      default: return <HomeView />;
     }
   };
 
   return (
     <div className="app-shell h-screen w-screen flex flex-col overflow-hidden">
       <Header />
+      <TraceBar />
 
       <div className="flex-1 flex overflow-hidden">
         <Sidebar />

@@ -31,6 +31,7 @@ import confetti from 'canvas-confetti';
 
 export type GameView =
   | 'my_server'
+  | 'machine'
   | 'target_server'
   | 'software'
   | 'processes'
