@@ -255,6 +255,17 @@ export interface ProxyHop {
   isClean: boolean;
 }
 
+export type HuntKind = 'reset' | 'fine' | 'raid' | 'cartel';
+export interface PendingHunt {
+  id: string;
+  ip: string;
+  hostname: string;
+  serverType: ServerType;
+  kind: HuntKind;
+  createdAt: number;
+  dueAt: number;
+}
+
 export interface PoliceTraceState {
   isActive: boolean;
   targetIp: string;
@@ -264,6 +275,7 @@ export interface PoliceTraceState {
   secondsRemaining: number;
   hops: ProxyHop[];
   dangerLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  lastHeat?: { label: string; seconds: number; at: number };
 }
 
 // --- Clans & Territory Wars ---
@@ -413,6 +425,8 @@ export interface Player {
   missionProgress?: Record<string, boolean>;
   completedMissionIds?: string[];
   completedContractIds?: string[];
+  connectedIp?: string;
+  pendingHunts?: PendingHunt[];
   operationLog?: Record<string, number>;
   discoveredIps: string[];
   hackedIps: string[];

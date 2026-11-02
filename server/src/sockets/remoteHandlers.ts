@@ -53,6 +53,8 @@ export function registerRemoteHandlers(socket: Socket, gameWorld: GameWorld, cur
   });
 
   socket.on('disconnect_target', () => {
+    // Stop the police trace on the server too (it used to keep running after leaving).
+    gameWorld.disconnectServer(currentUserId);
     socket.emit('target_disconnected', { success: true });
   });
 }

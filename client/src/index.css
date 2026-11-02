@@ -322,6 +322,8 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, te
   .hw-next { position: relative; padding: 22px 24px 24px; background: var(--painel); border: 1px solid var(--linha); border-left: 4px solid var(--fosforo); border-radius: 6px; }
   .hw-next__context { color: var(--nevoa); font-size: 14px; }
   .hw-next__title { margin-top: 6px; font-family: var(--font-display); font-weight: 900; font-size: clamp(30px, 4.2vw, 46px); line-height: .98; color: var(--papel); text-wrap: balance; max-width: 30ch; }
+  .hw-next__deadline { margin-top: 10px; font-size: 15px; color: var(--nevoa); }
+  .hw-next__deadline strong { font-family: var(--font-data); font-size: 22px; color: var(--sirene); text-shadow: 0 0 10px rgba(255, 46, 136, .45); margin-left: 6px; font-variant-numeric: tabular-nums; }
   .hw-next__detail { margin-top: 10px; color: var(--nevoa); font-size: 15px; max-width: 62ch; }
   .hw-next__blocker { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; color: var(--sirene); font-size: 15px; font-weight: 500; max-width: 62ch; }
   .hw-next__blocker svg { margin-top: 3px; }
@@ -337,6 +339,8 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, te
   .hw-trace__row .ip { font-family: var(--font-data); font-size: 12px; color: var(--fosforo); }
   .hw-trace__clock { flex: none; margin-left: auto; font-family: var(--font-data); font-weight: 600; font-size: 14px; color: var(--sirene); text-shadow: 0 0 10px rgba(255, 46, 136, .5); font-variant-numeric: tabular-nums; }
   .hw-trace--calm .hw-trace__clock { color: var(--nevoa); text-shadow: none; }
+  .hw-trace__heat { flex: none; font-family: var(--font-data); font-size: 12px; font-weight: 600; color: var(--madrugada); background: var(--sirene); padding: 1px 8px; border-radius: 10px; animation: hw-heat 4s ease-out forwards; }
+  @keyframes hw-heat { 0% { opacity: 0; transform: translateY(-4px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
   .hw-trace::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 3px); }
   @keyframes hw-siren { to { background-position: -100% 0; } }
 

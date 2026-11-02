@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowRight, CheckCircle2, Radio } from 'lucide-react';
 import { useGameStore } from '../../stores/useGameStore.js';
 import { computeNextStep, suggestContracts, type StepAction, type StepButton } from '../../game/nextStep.js';
 import { processTitle, secondsLeft } from '../../game/labels.js';
+import { HUNT_KIND_TEXT, formatCountdown } from '../../game/traceHeat.js';
 import { CyberProgress } from '../ui/CyberProgress.js';
 
 const money = (v: number) => `US$ ${v.toLocaleString('pt-BR')}`;
@@ -20,6 +21,9 @@ export const HomeView: React.FC = () => {
     player, storyChapters, missions, allServers, processes, news,
     setCurrentView, connectToTarget, claimMission, acceptMission,
   } = useGameStore();
+
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
 
   const step = useMemo(
     () => player ? computeNextStep({ player, storyChapters, missions, servers: allServers }) : null,
@@ -43,6 +47,7 @@ export const HomeView: React.FC = () => {
     </button>
   );
 
+  const hunts = [...(player.pendingHunts || [])].sort((a, b) => a.dueAt - b.dueAt);
   const active = player.activeMissions || [];
   const maxTasks = player.hardware.ram.maxTasks;
 
@@ -51,6 +56,9 @@ export const HomeView: React.FC = () => {
       <section className="hw-next" aria-labelledby="next-step-title">
         <p className="hw-next__context">Próximo passo · {step.context}</p>
         <h2 id="next-step-title" className="hw-next__title">{step.title}</h2>
+        {step.deadline && (
+          <p className="hw-next__deadline">Prazo <strong>{formatCountdown(step.deadline - now)}</strong></p>
+        )}
         {step.detail && <p className="hw-next__detail">{step.detail}</p>}
         {step.blocker && (
           <p className="hw-next__blocker"><AlertTriangle className="h-4 w-4 shrink-0" />{step.blocker}</p>
@@ -60,6 +68,24 @@ export const HomeView: React.FC = () => {
           {step.secondary && button(step.secondary, false)}
         </div>
       </section>
+
+      {hunts.length > 1 && (
+        <section className="cyber-panel p-4 sm:p-5">
+          <h3 className="cyber-module-title">Rastros deixados</h3>
+          <ul className="mt-3 divide-y divide-gray-200">
+            {hunts.map(h => (
+              <li key={h.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+                <span className="font-mono text-sm font-semibold text-red-500 w-12">{formatCountdown(h.dueAt - now)}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-gray-900">{h.hostname} <span className="font-mono text-xs text-gray-500">{h.ip}</span></p>
+                  <p className="text-xs text-gray-500">Depois do prazo, {HUNT_KIND_TEXT[h.kind]}.</p>
+                </div>
+                <button className="cyber-button hw-mini" onClick={() => connectToTarget(h.ip)}>Voltar e apagar</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="cyber-panel p-4 sm:p-5">

@@ -27,6 +27,9 @@ export const TraceBar: React.FC = () => {
         <span className="hidden lg:inline">
           {hops > 0 ? `${hops} ${hops === 1 ? 'proxy' : 'proxies'}` : 'Sem proxies'} · VPN +{vpn} s
         </span>
+        {tracing && activeTrace!.lastHeat && Date.now() - activeTrace!.lastHeat.at < 4000 && (
+          <span key={activeTrace!.lastHeat.at} className="hw-trace__heat">−{activeTrace!.lastHeat.seconds} s<span className="hidden sm:inline"> · {activeTrace!.lastHeat.label}</span></span>
+        )}
         {tracing ? (
           <span className="hw-trace__clock">
             <span className="hidden sm:inline">Rastreamento </span>{progress}% · {activeTrace!.secondsRemaining} s<span className="hidden sm:inline"> · risco {DANGER[activeTrace!.dangerLevel] || activeTrace!.dangerLevel}</span>

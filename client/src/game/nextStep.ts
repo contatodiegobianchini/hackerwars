@@ -1,5 +1,6 @@
 import type { Mission, Player, StoryChapter, VirtualServer } from '../types/game.js';
 import type { GameView } from '../stores/useGameStore.js';
+import { HUNT_KIND_TEXT } from './traceHeat.js';
 
 /** What a button on the home screen does. */
 export type StepAction =
@@ -19,6 +20,8 @@ export interface NextStep {
   blocker?: string;
   primary: StepButton;
   secondary?: StepButton;
+  /** Live countdown shown with the step (ms timestamp). */
+  deadline?: number;
 }
 
 export interface Suggestion { mission: Mission; server?: VirtualServer; }
@@ -120,6 +123,18 @@ export interface NextStepInput {
 /** Picks the single most useful thing the player can do now. */
 export function computeNextStep({ player, storyChapters, missions, servers }: NextStepInput): NextStep {
   const active = player.activeMissions || [];
+
+  // 0. Tracks left behind with a deadline running: the most urgent thing.
+  const hunt = [...(player.pendingHunts || [])].sort((a, b) => a.dueAt - b.dueAt)[0];
+  if (hunt) {
+    return {
+      context: 'Rastros deixados',
+      title: `Apague seus logs em ${hunt.hostname}`,
+      detail: `Seu IP ficou registrado. Quando o prazo acabar, ${HUNT_KIND_TEXT[hunt.kind]}.`,
+      deadline: hunt.dueAt,
+      primary: { label: 'Voltar e apagar', action: { kind: 'connect', ip: hunt.ip } },
+    };
+  }
 
   // 1. Rewards waiting: a chapter decision or a finished contract.
   const readyChapter = storyChapters.find(c => c.unlocked && !c.isCompleted && c.objectives.length > 0 && c.objectives.every(o => o.completed));

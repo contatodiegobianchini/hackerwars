@@ -1,6 +1,7 @@
 import { GameProcess, ProcessType, VirtualServer, SoftwareItem } from '../types/game.js';
 import { GameWorld } from './GameWorld.js';
 import type { MissionOperation } from './MissionEngine.js';
+import { HEAT_LABELS, traceHeatSeconds } from './traceHeat.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -148,6 +149,19 @@ export class ProcessEngine {
 
     this.processes.set(process.id, process);
     this.broadcastProcesses(playerId);
+
+    // Noise: actions on a monitored target bring the police trace closer.
+    if (params.targetIp) {
+      const target = this.gameWorld.getServer(params.targetIp);
+      const sizeMb = type === 'download' && params.targetFileId
+        ? target?.files?.find(f => f.id === params.targetFileId)?.sizeMb || 0
+        : 0;
+      const heat = traceHeatSeconds(type, sizeMb);
+      if (heat > 0) {
+        const label = HEAT_LABELS[type] || type;
+        this.gameWorld.proxyTraceEngine.addHeat(playerId, params.targetIp, heat, label);
+      }
+    }
 
     return { success: true, process };
   }
@@ -305,7 +319,10 @@ export class ProcessEngine {
       case 'wipelog':
         if (proc.targetIp) {
           const res = this.gameWorld.wipeRemoteLogs(proc.targetIp);
-          if (res.success) completedOp = { op: 'wipe_logs' };
+          if (res.success) {
+            completedOp = { op: 'wipe_logs' };
+            this.gameWorld.runHuntsFor(userId, this.gameWorld.getPlayer(userId));
+          }
           resultMessage = `Todos os logs em ${proc.targetIp} foram apagados.`;
         }
         break;
