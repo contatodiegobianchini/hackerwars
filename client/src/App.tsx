@@ -13,7 +13,7 @@ import { TargetServerView } from './components/views/TargetServerView.js';
 import { SoftwareListView } from './components/views/SoftwareListView.js';
 import { ProcessQueueView } from './components/views/ProcessQueueView.js';
 import { KnownServersView } from './components/views/KnownServersView.js';
-import { MissionsView } from './components/views/MissionsView.js';
+import { OperationsBoard } from './components/views/OperationsBoard.js';
 import { BlackMarketView } from './components/views/BlackMarketView.js';
 import { BankingView } from './components/views/BankingView.js';
 import { CryptoView } from './components/views/CryptoView.js';
@@ -94,7 +94,7 @@ export const App: React.FC = () => {
       case 'software': return <SoftwareListView />;
       case 'processes': return <ProcessQueueView />;
       case 'known_servers': return <KnownServersView />;
-      case 'missions': return <MissionsView />;
+      case 'missions': return <OperationsBoard />;
       case 'campaign': return <CampaignView />;
       case 'black_market': return <BlackMarketView />;
       case 'crypto': return <CryptoView />;

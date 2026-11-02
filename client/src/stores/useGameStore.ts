@@ -91,6 +91,8 @@ interface GameState {
   auctions: DarknetAuctionItem[];
   isTerminalOpen: boolean;
   isChatOpen: boolean;
+  focusChapterId: string | null;
+  openChapter: (chapterId: string) => void;
   chatSeenCount: number;
   setChatOpen: (open: boolean) => void;
   toggleChat: () => void;
@@ -201,6 +203,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   adminUsers: [],
   isTerminalOpen: false,
   isChatOpen: false,
+  focusChapterId: null,
   chatSeenCount: 0,
   isJumpscareVideoPlaying: false,
   isSoundtrackPlaying: true,
@@ -222,6 +225,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     isMobileMenuOpen: false,
     chatSeenCount: state.darkChatChannels.reduce((n, c) => n + (c.messages?.length || 0), 0),
   })),
+  openChapter: (chapterId) => { sounds.click(); set({ focusChapterId: chapterId, currentView: 'campaign', isMobileMenuOpen: false }); },
   toggleChat: () => { sounds.click(); get().setChatOpen(!get().isChatOpen); },
   setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
   toggleMobileMenu: () => { sounds.click(); set(state => ({ isMobileMenuOpen: !state.isMobileMenuOpen })); },

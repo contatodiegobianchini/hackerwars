@@ -18,9 +18,9 @@ export const ZONES: Zone[] = [
     { view: 'known_servers', label: 'Alvos' },
     { view: 'target_server', label: 'Alvo conectado' },
   ] },
-  { id: 'operacoes', label: 'Operações', hint: 'História e contratos', icon: Crosshair, tabs: [
+  { id: 'operacoes', label: 'Operações', hint: 'História, contratos, Syndicate', icon: Crosshair, tabs: [
+    { view: 'missions', label: 'Quadro' },
     { view: 'campaign', label: 'História' },
-    { view: 'missions', label: 'Contratos' },
   ] },
   { id: 'base', label: 'Base', hint: 'Sua máquina', icon: Cpu, tabs: [
     { view: 'machine', label: 'Minha máquina' },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowRight, CheckCircle2, Circle, LockKeyhole, MessageSquare, Radio, Terminal } from 'lucide-react';
 import { useGameStore } from '../../stores/useGameStore.js';
 import { StoryObjective } from '../../types/game.js';
@@ -8,7 +8,12 @@ import { CyberProgress } from '../ui/CyberProgress.js';
 
 export const CampaignView: React.FC = () => {
   const { player, storyChapters, submitStoryChoice, connectToTarget, setCurrentView } = useGameStore();
-  const [selectedChapterId, setSelectedChapterId] = useState('chap-1');
+  const focusChapterId = useGameStore(state => state.focusChapterId);
+  // Open on the chapter asked for (from the operations board) or on the one in progress.
+  const [selectedChapterId, setSelectedChapterId] = useState(
+    () => focusChapterId || storyChapters.find(c => c.unlocked && !c.isCompleted)?.id || 'chap-1',
+  );
+  useEffect(() => { if (focusChapterId) setSelectedChapterId(focusChapterId); }, [focusChapterId]);
   if (!player) return null;
   const chapter = storyChapters.find(item => item.id === selectedChapterId) || storyChapters[0];
   // Objective state is computed by the server (per-player, authoritative).

@@ -388,3 +388,56 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, te
     .hw-trace__row { padding: 6px 12px; }
   }
 }
+
+/* =========================================================================
+   Fase 3: quadro de operações
+   ========================================================================= */
+@layer components {
+  .hw-filter { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 6px; background: var(--inset); border: 1px solid var(--linha); }
+  .hw-filter button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 4px; font-size: 14px; font-weight: 500; color: var(--nevoa); }
+  .hw-filter button:hover { color: var(--papel); }
+  .hw-filter button[aria-pressed="true"] { background: var(--elevado); color: var(--papel); font-weight: 600; }
+  .hw-filter__count { font-size: 12px; color: var(--apagado); font-variant-numeric: tabular-nums; }
+
+  .hw-ops { display: grid; border: 1px solid var(--linha); border-radius: 6px; background: var(--painel); overflow: hidden; }
+  .hw-ops__empty { padding: 28px 20px; text-align: center; color: var(--nevoa); font-size: 14px; }
+  .hw-op { border-top: 1px solid var(--linha); }
+  .hw-op:first-child { border-top: 0; }
+  .hw-op__row {
+    width: 100%; display: grid; align-items: center; gap: 4px 16px; text-align: left;
+    grid-template-columns: 84px minmax(0, 1fr) minmax(0, 240px) 120px 18px; padding: 12px 16px;
+    box-shadow: inset 3px 0 transparent;
+  }
+  .hw-op__row:hover { background: var(--elevado); }
+  .hw-op--ready .hw-op__row { box-shadow: inset 3px 0 var(--neon-ciano); }
+  .hw-op--active .hw-op__row { box-shadow: inset 3px 0 var(--fosforo); }
+  .hw-op--blocked .hw-op__row { box-shadow: inset 3px 0 var(--sirene); }
+  .hw-op__kind { font-size: 12px; font-weight: 600; color: var(--apagado); }
+  .hw-op--story .hw-op__kind { color: var(--fosforo); }
+  .hw-op__main { min-width: 0; display: grid; }
+  .hw-op__title { font-size: 15px; font-weight: 600; color: var(--papel); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hw-op__sub { font-size: 13px; color: var(--nevoa); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hw-op__status { font-size: 13px; color: var(--nevoa); }
+  .hw-op--ready .hw-op__status { color: var(--neon-ciano); font-weight: 600; }
+  .hw-op__blocker { color: var(--sirene); }
+  .hw-op__reward { text-align: right; font-family: var(--font-data); font-size: 14px; font-weight: 600; color: var(--fosforo); font-variant-numeric: tabular-nums; }
+  .hw-op--done .hw-op__reward { color: var(--apagado); }
+  .hw-op__chev { width: 18px; height: 18px; color: var(--apagado); transition: transform .15s; }
+  .hw-op__detail { display: grid; gap: 12px; padding: 4px 16px 18px 116px; }
+  .hw-op__desc { font-size: 14px; line-height: 1.55; color: var(--papel); max-width: 72ch; }
+  .hw-op__obj { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--papel); }
+  .hw-op__obj svg { width: 16px; height: 16px; margin-top: 2px; flex: none; color: var(--apagado); }
+  .hw-op__obj--done { color: var(--nevoa); }
+  .hw-op__obj--done svg { color: var(--neon-ciano); }
+  .hw-op__rewards { font-size: 13px; color: var(--nevoa); }
+
+  @media (max-width: 900px) {
+    .hw-op__row { grid-template-columns: minmax(0, 1fr) auto 18px; padding: 12px 14px; }
+    .hw-op__kind { grid-column: 1 / -1; }
+    .hw-op__main { grid-column: 1; }
+    .hw-op__status { grid-column: 1; grid-row: 3; }
+    .hw-op__reward { grid-column: 2; grid-row: 2; }
+    .hw-op__chev { grid-column: 3; grid-row: 2; }
+    .hw-op__detail { padding: 0 14px 16px; }
+  }
+}

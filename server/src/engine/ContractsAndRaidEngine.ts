@@ -164,31 +164,55 @@ export class ContractsAndRaidEngine {
 
   // --- 2. Darknet Contracts (Bounty Board) ---
 
+  /** Whether the contract's objective is met by this player (not just the breach). */
+  public isContractObjectiveDone(player: Player, contract: DarknetContract): boolean {
+    const ip = contract.targetIp;
+    if (!player.hackedIps.includes(ip) && contract.type !== 'ddos_shutdown') return false;
+    const did = (op: string) => !!player.operationLog?.[`${op}:${ip}`];
+    const server = this.gameWorld.getServer(ip);
+    switch (contract.type) {
+      case 'steal_file': {
+        if (contract.targetFileName) {
+          const wanted = contract.targetFileName.toLowerCase();
+          return player.software.some(s => s.name?.toLowerCase() === wanted);
+        }
+        const names = new Set((server?.files || []).map(f => f.name.toLowerCase()));
+        return did('download') || player.software.some(s => names.has(s.name?.toLowerCase()));
+      }
+      case 'ddos_shutdown': return did('ddos');
+      case 'plant_miner': return !!server?.activeMiners?.some(m => m.ownerId === player.id);
+      case 'siphon_bank': return did('bank_heist');
+      default: return false;
+    }
+  }
+
   public claimContract(player: Player, contractId: string): { success: boolean; message: string; contract?: DarknetContract } {
     const contract = this.contracts.find(c => c.id === contractId);
     if (!contract) return { success: false, message: 'Contrato não encontrado.' };
-    if (contract.completed) return { success: false, message: 'Este contrato já foi concluído.' };
+    // Completion is per player: one player delivering it must not remove it for everyone.
+    player.completedContractIds = player.completedContractIds || [];
+    if (player.completedContractIds.includes(contract.id)) return { success: false, message: 'Você já entregou este contrato.' };
 
     const cracker = player.software.find(s => s.type === 'cracker');
     const crackerLevel = cracker ? cracker.version : 1.0;
-
     if (crackerLevel < contract.requiredCrackerLevel) {
       return {
         success: false,
-        message: `Nível de Cracker Insuficiente: Este contrato exige Cracker v${contract.requiredCrackerLevel.toFixed(1)}+ (Você possui v${crackerLevel.toFixed(1)}).`,
+        message: `Este contrato exige cracker v${contract.requiredCrackerLevel.toFixed(1)} ou maior (o seu é v${crackerLevel.toFixed(1)}).`,
       };
     }
 
-    // Check if target server was compromised or fulfilled
-    // Root access is per player; another player's breach of the shared server does not count.
-    if (!player.hackedIps.includes(contract.targetIp)) {
-      return {
-        success: false,
-        message: `Objetivo incompleto: Você precisa quebrar a segurança e invadir ${contract.targetHostname} (${contract.targetIp}) primeiro!`,
+    if (!this.isContractObjectiveDone(player, contract)) {
+      const what: Record<DarknetContract['type'], string> = {
+        steal_file: `invadir ${contract.targetHostname} e baixar ${contract.targetFileName || 'um arquivo do servidor'}`,
+        ddos_shutdown: `derrubar ${contract.targetHostname} com um ataque DDoS`,
+        plant_miner: `invadir ${contract.targetHostname} e instalar um minerador`,
+        siphon_bank: `invadir ${contract.targetHostname} e executar o mega-assalto`,
       };
+      return { success: false, message: `Objetivo incompleto: você precisa ${what[contract.type]}.` };
     }
 
-    contract.completed = true;
+    player.completedContractIds.push(contract.id);
     player.cash += contract.rewardCash;
     player.reputation += contract.rewardRep;
     if (contract.rewardCryptoBtc) {
@@ -201,7 +225,7 @@ export class ContractsAndRaidEngine {
     return {
       success: true,
       contract,
-      message: `Contrato "${contract.title}" Concluído! Recompensa de +$${contract.rewardCash.toLocaleString()} USD e +${contract.rewardRep} REP creditada!`,
+      message: `Contrato "${contract.title}" entregue: +US$ ${contract.rewardCash.toLocaleString('pt-BR')} e +${contract.rewardRep} de reputação.`,
     };
   }
 
@@ -279,11 +303,12 @@ export class ContractsAndRaidEngine {
         targetIp: '104.18.23.99',
         targetHostname: 'colacoca-vault.corp',
         type: 'steal_file',
+        targetFileName: 'formula_secreta_colacoca_2026.pdf',
         rewardCash: 45000,
         rewardCryptoBtc: 0.15,
         rewardRep: 1200,
         requiredCrackerLevel: 8.0,
-        description: 'Um conglomerado rival quer a fórmula original do refrigerante. Invada o servidor da Cola-Coca e quebre a criptografia.',
+        description: 'Um conglomerado rival quer a fórmula original do refrigerante. Invada o servidor da Cola-Coca e baixe formula_secreta_colacoca_2026.pdf.',
       },
       {
         id: 'cnt-2',
@@ -303,11 +328,12 @@ export class ContractsAndRaidEngine {
         targetIp: '198.51.100.24',
         targetHostname: 'surveillance.fbi-gov.sec',
         type: 'steal_file',
+        targetFileName: 'planos_area_51_aliens.dat',
         rewardCash: 350000,
         rewardCryptoBtc: 1.25,
         rewardRep: 8500,
         requiredCrackerLevel: 30.0,
-        description: 'Infiltre o banco de dados do FBI, quebre o hasher v30.0 e recupere os arquivos confidenciais da Área 51.',
+        description: 'Infiltre o banco de dados do FBI, quebre o Hasher e baixe planos_area_51_aliens.dat.',
       },
       {
         id: 'cnt-4',

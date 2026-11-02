@@ -120,3 +120,26 @@ test('random missions always target a real, completable server', () => {
     if (m.type === 'hack_bank') assert.equal(m.targetIp, '10.0.0.6');
   }
 });
+
+test('syndicate contracts: per-player completion and real objective checks', async () => {
+  const { ContractsAndRaidEngine } = await import('./engine/ContractsAndRaidEngine.js');
+  const servers: Record<string, any> = {
+    '104.18.23.99': { ip: '104.18.23.99', files: [{ name: 'formula_secreta_colacoca_2026.pdf' }], activeMiners: [] },
+  };
+  const world: any = { getServer: (ip: string) => servers[ip], addNews: () => {} };
+  const engine = new ContractsAndRaidEngine(world);
+  const a = makePlayer();
+  a.software.push({ name: 'Cracker', type: 'cracker', version: 10, sizeMb: 1 });
+  a.hackedIps = ['104.18.23.99'];
+
+  // Breach alone is not enough for a steal_file contract.
+  assert.equal(engine.claimContract(a, 'cnt-1').success, false);
+  a.software.push({ name: 'formula_secreta_colacoca_2026.pdf', sizeMb: 1 });
+  assert.equal(engine.claimContract(a, 'cnt-1').success, true);
+  assert.equal(engine.claimContract(a, 'cnt-1').success, false);
+
+  // Another player can still deliver the same contract.
+  const b = { ...makePlayer(), id: 'p2', hackedIps: ['104.18.23.99'] };
+  b.software = [{ name: 'Cracker', type: 'cracker', version: 10, sizeMb: 1 }, { name: 'formula_secreta_colacoca_2026.pdf', sizeMb: 1 }];
+  assert.equal(engine.claimContract(b, 'cnt-1').success, true);
+});

@@ -4,7 +4,6 @@ import { DollarSign, Bitcoin } from 'lucide-react';
 import { MarketHeader, BlackMarketTab } from './blackmarket/MarketHeader.js';
 import { MarketCrateCard } from './blackmarket/MarketCrateCard.js';
 import { MarketAuctionCard } from './blackmarket/MarketAuctionCard.js';
-import { MarketContractCard } from './blackmarket/MarketContractCard.js';
 import { MarketRewardModal } from './blackmarket/MarketRewardModal.js';
 
 export const BlackMarketView: React.FC = () => {
@@ -18,8 +17,6 @@ export const BlackMarketView: React.FC = () => {
     auctions,
     placeAuctionBid,
     buyoutAuction,
-    contracts,
-    claimDarknetContract
   } = useGameStore();
 
   const [activeTab, setActiveTab] = useState<BlackMarketTab>('crates');
@@ -87,22 +84,6 @@ export const BlackMarketView: React.FC = () => {
                 player={player}
                 onPlaceBid={placeAuctionBid}
                 onBuyout={buyoutAuction}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: SYNDICATE CONTRACTS */}
-      {activeTab === 'contracts' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {contracts.map(cnt => (
-              <MarketContractCard
-                key={cnt.id}
-                contract={cnt}
-                player={player}
-                onClaimContract={claimDarknetContract}
               />
             ))}
           </div>

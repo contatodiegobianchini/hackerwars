@@ -6,7 +6,7 @@ export const TaskProgressPopup: React.FC = () => {
   const { processes, currentView, setCurrentView } = useGameStore();
 
   // Screens that already list running processes don't need the floating card.
-  if (processes.length === 0 || ['processes', 'my_server', 'target_server'].includes(currentView)) return null;
+  if (processes.length === 0 || ['processes', 'my_server', 'target_server', 'missions'].includes(currentView)) return null;
 
   const currentTask = processes[0];
   const remainingSec = Math.max(0, Math.ceil((currentTask.endTime - Date.now()) / 1000));
@@ -14,7 +14,7 @@ export const TaskProgressPopup: React.FC = () => {
   return (
     <div
       onClick={() => setCurrentView('processes')}
-      className="fixed bottom-16 sm:bottom-5 right-3 sm:right-5 z-30 bg-white text-gray-900 border border-gray-200 rounded-2xl p-3.5 sm:p-4 shadow-xl cursor-pointer hover:shadow-2xl transition-all max-w-[calc(100vw-24px)] sm:max-w-xs w-full select-none"
+      className="hidden md:block fixed bottom-16 sm:bottom-5 right-3 sm:right-5 z-30 bg-white text-gray-900 border border-gray-200 rounded-2xl p-3.5 sm:p-4 shadow-xl cursor-pointer hover:shadow-2xl transition-all max-w-[calc(100vw-24px)] sm:max-w-xs w-full select-none"
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-2">
