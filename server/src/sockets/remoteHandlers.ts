@@ -13,12 +13,13 @@ export function registerRemoteHandlers(socket: Socket, gameWorld: GameWorld, cur
   });
 
   socket.on('wipe_remote_logs', ({ targetIp }: { targetIp: string }) => {
-    const result = (gameWorld as any).wipeRemoteLogs(currentUserId, targetIp);
+    const result = gameWorld.wipeRemoteLogsAsPlayer(currentUserId, targetIp);
     socket.emit('file_operation_result', { ...result, server: gameWorld.getServer(targetIp) });
+    if (result.success) socket.emit('story_chapters_update', { storyChapters: gameWorld.getStoryChapters(currentUserId), player: gameWorld.getPlayer(currentUserId) });
   });
 
   socket.on('edit_log', ({ targetIp, logId, newText }: { targetIp: string; logId: string; newText: string }) => {
-    const result = (gameWorld as any).editLog(currentUserId, targetIp, logId, newText);
+    const result = gameWorld.editLogAsPlayer(currentUserId, targetIp, logId, newText);
     socket.emit('log_edit_result', { ...result, server: gameWorld.getServer(targetIp) });
   });
 

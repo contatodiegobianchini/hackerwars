@@ -93,7 +93,7 @@ export const Sidebar: React.FC = () => {
           id: 'target_server' as GameView,
           label: `Alvo: ${activeConnection.hostname.split('.')[0]}`,
           icon: Radio,
-          badge: activeConnection.security.isBreached ? 'ROOT' : 'LOCK',
+          badge: player?.hackedIps?.includes(activeConnection.ip) ? 'ROOT' : 'LOCK',
         }] : [])
       ]
     },

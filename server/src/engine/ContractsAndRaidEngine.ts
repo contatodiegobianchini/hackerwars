@@ -180,10 +180,8 @@ export class ContractsAndRaidEngine {
     }
 
     // Check if target server was compromised or fulfilled
-    const target = this.gameWorld.getServer(contract.targetIp);
-    const hasBreached = target ? target.security.isBreached : false;
-
-    if (!hasBreached && !player.hackedIps.includes(contract.targetIp)) {
+    // Root access is per player; another player's breach of the shared server does not count.
+    if (!player.hackedIps.includes(contract.targetIp)) {
       return {
         success: false,
         message: `Objetivo incompleto: Você precisa quebrar a segurança e invadir ${contract.targetHostname} (${contract.targetIp}) primeiro!`,

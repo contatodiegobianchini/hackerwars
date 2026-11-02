@@ -210,6 +210,7 @@ export interface Mission {
   difficulty: MissionDifficulty;
   status: MissionStatus;
   timeLimitMs?: number;
+  acceptedAt?: number;
 }
 
 export interface CryptoCoin {
@@ -409,6 +410,9 @@ export interface Player {
   software: SoftwareItem[];
   logs: LogEntry[];
   activeMissions: Mission[];
+  missionProgress?: Record<string, boolean>;
+  completedMissionIds?: string[];
+  operationLog?: Record<string, number>;
   discoveredIps: string[];
   hackedIps: string[];
 
@@ -423,6 +427,7 @@ export interface Player {
   completedStoryChapters: string[];
   factionReputation: Record<FactionType, number>;
   activeFactionAlignment?: FactionType;
+  factionSwitchedAt?: number;
   unlockedStoryPerks: StoryPerk[];
   activeStoryChapterId?: string;
   lockdownUntil?: number;

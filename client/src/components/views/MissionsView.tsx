@@ -10,7 +10,6 @@ export const MissionsView: React.FC = () => {
     acceptMission,
     claimMission,
     connectToTarget,
-    allServers
   } = useGameStore();
 
   const [tab, setTab] = useState<'available' | 'active'>('available');
@@ -18,7 +17,8 @@ export const MissionsView: React.FC = () => {
   if (!player) return null;
 
   const activeMissions = player.activeMissions || [];
-  const availableMissions = missions.filter(m => !activeMissions.some(am => am.id === m.id));
+  const completedMissionIds = player.completedMissionIds || [];
+  const availableMissions = missions.filter(m => !activeMissions.some(am => am.id === m.id) && !completedMissionIds.includes(m.id));
 
   const getDifficultyBadge = (diff: MissionDifficulty) => {
     switch (diff) {
@@ -30,20 +30,9 @@ export const MissionsView: React.FC = () => {
     }
   };
 
-  const isMissionCompletable = (mission: any) => {
-    if (mission.type === 'steal_file' && mission.requiredFileName) {
-      return player.software.some(s => s.name === mission.requiredFileName);
-    }
-    if (mission.type === 'wipe_server') {
-      const srv = allServers.find(s => s.ip === mission.targetIp);
-      return srv ? srv.logs.length === 0 : false;
-    }
-    if (mission.type === 'hack_bank') {
-      const srv = allServers.find(s => s.ip === mission.targetIp);
-      return srv ? srv.security.isBreached : false;
-    }
-    return true;
-  };
+  // The server records progress only when the required operation finishes
+  // successfully after the contract was accepted (player.missionProgress).
+  const isMissionCompletable = (mission: { id: string }) => !!player.missionProgress?.[mission.id];
 
   return (
     <div className="space-y-4">

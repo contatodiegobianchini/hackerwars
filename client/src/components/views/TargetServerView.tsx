@@ -69,7 +69,7 @@ export const TargetServerView: React.FC = () => {
     );
   }
 
-  const isBreached = activeConnection.security.isBreached || (player.hackedIps && player.hackedIps.includes(activeConnection.ip));
+  const isBreached = !!player.hackedIps?.includes(activeConnection.ip);
   const isOnline = activeConnection.isOnline !== false;
   const isBank = activeConnection.type === 'bank';
 

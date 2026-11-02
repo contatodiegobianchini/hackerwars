@@ -186,7 +186,7 @@ export const KnownServersView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredServers.map(srv => {
           const diff = getDifficultyStars(srv.security.hasherLevel);
-          const isBreached = srv.security.isBreached;
+          const isBreached = !!player?.hackedIps?.includes(srv.ip);
           const isProxyHop = activeProxyChain.includes(srv.ip);
 
           return (

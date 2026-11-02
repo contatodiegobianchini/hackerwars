@@ -103,11 +103,12 @@ socketPrototype.onevent = function patchedSocketOnevent(packet: any) {
       return;
     }
 
-    const result = gameWorld.wipeRemoteLogs(targetIp);
+    const result = gameWorld.wipeRemoteLogsAsPlayer(userId, targetIp);
     socket.emit('file_operation_result', {
       ...result,
       server: gameWorld.getServer(targetIp),
     });
+    if (result.success) socket.emit('story_chapters_update', { storyChapters: gameWorld.getStoryChapters(userId), player: gameWorld.getPlayer(userId) });
     return;
   }
 
@@ -120,7 +121,7 @@ socketPrototype.onevent = function patchedSocketOnevent(packet: any) {
     const targetIp = typeof payload.targetIp === 'string' ? payload.targetIp : typeof payload.ip === 'string' ? payload.ip : '';
     const logId = typeof payload.logId === 'string' ? payload.logId : '';
     const newText = typeof payload.newText === 'string' ? payload.newText : '';
-    const result = gameWorld.editLogEntry(targetIp, logId, newText);
+    const result = gameWorld.editLogAsPlayer(userId, targetIp, logId, newText);
     socket.emit('log_edit_result', {
       ...result,
       server: gameWorld.getServer(targetIp),

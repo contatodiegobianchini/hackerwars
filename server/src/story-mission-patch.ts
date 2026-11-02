@@ -1,129 +1,12 @@
-import { GameWorld } from './engine/GameWorld.js';
-import { MissionEngine } from './engine/MissionEngine.js';
 import { ProcessEngine } from './engine/ProcessEngine.js';
 import { StoryEngine } from './engine/StoryEngine.js';
 
-const worldProto = GameWorld.prototype as any;
-const missionProto = MissionEngine.prototype as any;
 const processProto = ProcessEngine.prototype as any;
 const storyProto = StoryEngine.prototype as any;
 
-function progressFor(player: any): Record<string, boolean> {
-  if (!player.missionProgress || typeof player.missionProgress !== 'object') player.missionProgress = {};
-  return player.missionProgress;
-}
-
-function markProgress(player: any, key: string) {
-  progressFor(player)[key] = true;
-}
-
-function markForAllMatchingMissions(player: any, type: string, targetIp: string, fileName?: string) {
-  const active = player.activeMissions || [];
-  for (const mission of active) {
-    if (mission.targetIp !== targetIp) continue;
-    if (type === 'download' && mission.type === 'steal_file') {
-      if (!mission.requiredFileName || !fileName || mission.requiredFileName.toLowerCase() === fileName.toLowerCase()) {
-        markProgress(player, `download:${targetIp}:${mission.requiredFileName || fileName || ''}`);
-      }
-    } else if (type === 'wipe_logs' && mission.type === 'wipe_server') {
-      markProgress(player, `wipe_logs:${targetIp}`);
-    } else if (type === 'bank_heist' && mission.type === 'hack_bank') {
-      markProgress(player, `bank_heist:${targetIp}`);
-    } else if (type === 'ddos' && mission.type === 'ddos_target') {
-      markProgress(player, `ddos:${targetIp}`);
-    } else if (type === 'spyware' && mission.type === 'plant_virus') {
-      markProgress(player, `spyware:${targetIp}`);
-    } else if (type === 'crack' && mission.targetIp === targetIp) {
-      markProgress(player, `crack:${targetIp}`);
-    }
-  }
-}
-
-// Mission completion should reflect the actual operation that was completed, not
-// only whether a server happened to be breached or a file exists somewhere.
-const originalClaimMission = missionProto.claimMission;
-missionProto.claimMission = function hardenedClaimMission(player: any, id: string) {
-  player.activeMissions = player.activeMissions || [];
-  const index = player.activeMissions.findIndex((m: any) => m.id === id);
-  if (index === -1) return { success: false, message: 'Esta missão não está ativa para o seu jogador.' };
-
-  const mission = player.activeMissions[index];
-  const progress = progressFor(player);
-  const crackDone = !!progress[`crack:${mission.targetIp}`] || player.hackedIps?.includes(mission.targetIp);
-  const downloadDone = !!progress[`download:${mission.targetIp}:${mission.requiredFileName || ''}`] || (!!mission.requiredFileName && player.software?.some((s: any) => s.name?.toLowerCase() === mission.requiredFileName.toLowerCase()));
-  const wipeDone = !!progress[`wipe_logs:${mission.targetIp}`];
-  const heistDone = !!progress[`bank_heist:${mission.targetIp}`];
-  const ddosDone = !!progress[`ddos:${mission.targetIp}`];
-  const spywareDone = !!progress[`spyware:${mission.targetIp}`];
-
-  let complete = false;
-  switch (mission.type) {
-    case 'steal_file': complete = downloadDone; break;
-    case 'wipe_server': complete = wipeDone; break;
-    case 'hack_bank': complete = heistDone; break;
-    case 'ddos_target': complete = ddosDone; break;
-    case 'plant_virus': complete = spywareDone; break;
-    case 'trace_hacker': complete = crackDone; break;
-    default: complete = crackDone;
-  }
-
-  if (!complete) {
-    return { success: false, mission, message: `Objetivo ainda não concluído: ${mission.title}. Execute a operação exigida no alvo ${mission.targetIp} antes de coletar a recompensa.` };
-  }
-
-  player.cash += mission.rewardCash;
-  if (!player.cryptoWallet) player.cryptoWallet = { btc: 0, eth: 0, doge: 0, shdw: 0, pepe: 0 };
-  player.cryptoWallet.btc = Number(((player.cryptoWallet.btc || 0) + mission.rewardCrypto).toFixed(6));
-  player.crypto = player.cryptoWallet.btc;
-  player.reputation += mission.rewardRep;
-
-  const completedMission = { ...mission, status: 'completed' };
-  player.activeMissions.splice(index, 1);
-  return {
-    success: true,
-    mission: completedMission,
-    message: `Missão concluída! +$${mission.rewardCash.toLocaleString()} USD, +${mission.rewardCrypto} BTC e +${mission.rewardRep} REP.`,
-  };
-};
-
-// Process completion is the authoritative point where the game knows the action
-// really finished. Record mission progress here, including process types whose
-// GameWorld methods historically received a shortened argument list.
-const originalHandleProcessCompletion = processProto.handleProcessCompletion;
-processProto.handleProcessCompletion = function patchedProcessCompletion(proc: any) {
-  originalHandleProcessCompletion.call(this, proc);
-  const player = this.gameWorld.getPlayer(proc.playerId);
-  const server = proc.targetIp ? this.gameWorld.getServer(proc.targetIp) : undefined;
-  if (!server) {
-    if (proc.type === 'compile') return;
-    return;
-  }
-
-  switch (proc.type) {
-    case 'crack':
-      if (server.security?.isBreached) markForAllMatchingMissions(player, 'crack', proc.targetIp);
-      break;
-    case 'download': {
-      const file = proc.targetFileId ? server.files?.find((f: any) => f.id === proc.targetFileId) : undefined;
-      if (file) markForAllMatchingMissions(player, 'download', proc.targetIp, file.name);
-      break;
-    }
-    case 'wipelog':
-      if (!server.logs?.some((l: any) => l.ip === player.ip)) markForAllMatchingMissions(player, 'wipe_logs', proc.targetIp);
-      break;
-    case 'ddos':
-      if (server.isOnline === false) markForAllMatchingMissions(player, 'ddos', proc.targetIp);
-      break;
-    case 'plant_spyware':
-      if (server.activeSpyware?.some((s: any) => s.ownerId === player.id)) markForAllMatchingMissions(player, 'spyware', proc.targetIp);
-      break;
-    case 'mass_bank_heist':
-      markForAllMatchingMissions(player, 'bank_heist', proc.targetIp);
-      break;
-  }
-
-  this.gameWorld.savePlayerState(proc.playerId);
-};
+// Mission progress tracking and claim validation now live in MissionEngine
+// (recordOperation/claimMission) and ProcessEngine.handleProcessCompletion, so
+// they also run in `npm run dev`, which does not load these --import patches.
 
 // The story choices are expanded with additional perks. The perk is attached at
 // completion time so existing chapter definitions remain backwards compatible.
@@ -153,20 +36,7 @@ storyProto.completeChapterChoice = function patchedCompleteChapterChoice(player:
   return result;
 };
 
-// The story UI should always show the actual target defense level.
-const originalGetChapters = storyProto.getChapters;
-storyProto.getChapters = function patchedGetChapters(player: any, servers?: Map<string, any>) {
-  const chapters = originalGetChapters.call(this, player, servers);
-  const goolag = servers?.get('142.250.190.46');
-  const hasher = goolag?.security?.hasherLevel;
-  if (hasher !== undefined) {
-    const chapter = chapters.find((c: any) => c.id === 'chap-5');
-    const objective = chapter?.objectives?.find((o: any) => o.id === 'c5-obj-1');
-    if (objective) objective.text = `Quebrar Hasher v${Number(hasher).toFixed(1)} de 142.250.190.46`;
-    if (chapter) chapter.briefing = `O cluster do Goolag (142.250.190.46) monitora o histórico de todos os cidadãos da Terra. O servidor está protegido por um Hasher corporativo v${Number(hasher).toFixed(1)}. Invada o servidor e instale um cluster minerador.`;
-  }
-  return chapters;
-};
+// Live hasher levels in chapter texts are now handled by StoryEngine.getChapters.
 
 // Apply a few high-value perk effects without making the new perks decorative.
 const originalCalculateDuration = processProto.calculateDuration;
@@ -196,4 +66,4 @@ processProto.startProcess = function patchedStartProcess(playerId: string, type:
   }
 };
 
-console.log('[story-mission] mission progress + story perks + dynamic hasher patch loaded');
+console.log('[story-mission] story perks patch loaded');

@@ -1,6 +1,18 @@
-import { Mission, MissionDifficulty, MissionType, Player } from '../types/game.js';
+import { Mission, MissionDifficulty, MissionType, Player, VirtualServer } from '../types/game.js';
 import { GameWorld } from './GameWorld.js';
 import { v4 as uuidv4 } from 'uuid';
+
+export type MissionOperation = 'crack' | 'download' | 'wipe_logs' | 'ddos' | 'spyware' | 'bank_heist';
+
+/** Which completed operation satisfies each mission type. */
+const MISSION_OPERATION: Record<MissionType, MissionOperation> = {
+  steal_file: 'download',
+  wipe_server: 'wipe_logs',
+  hack_bank: 'bank_heist',
+  ddos_target: 'ddos',
+  plant_virus: 'spyware',
+  trace_hacker: 'crack',
+};
 
 export class MissionEngine {
   private availableMissions: Mission[] = [];
@@ -49,7 +61,7 @@ export class MissionEngine {
       },
       {
         id: 'mis-2', title: 'A Fórmula Secreta da Cola-Coca', employer: 'Pepsi-Syndicate',
-        description: 'A Cola-Coca (104.18.23.99) guarda a fórmula do refrigerante trancada a sete chaves desde 1886. Invada o servidor deles, quebre a senha Hasher v1.8 e faça o download de formula_secreta_colacoca_2026.pdf!',
+        description: 'A Cola-Coca (104.18.23.99) guarda a fórmula do refrigerante trancada a sete chaves desde 1886. Invada o servidor deles, quebre a senha protegida pelo Hasher corporativo e faça o download de formula_secreta_colacoca_2026.pdf!',
         type: 'steal_file', targetIp: '104.18.23.99', targetDomain: 'colacoca.corp', requiredFileName: 'formula_secreta_colacoca_2026.pdf',
         rewardCash: 1800, rewardCrypto: 0.025, rewardRep: 150, difficulty: 'Medium', status: 'available',
       },
@@ -67,7 +79,7 @@ export class MissionEngine {
       },
       {
         id: 'mis-5', title: 'Apagar Histórico Vergonhoso do Goolag', employer: 'Político Anônimo',
-        description: 'Um figurão fez pesquisas constrangedoras às 3h da manhã no Goolag (142.250.190.46). Obtenha acesso root e limpe TODOS os registros de logs de acesso do servidor!',
+        description: 'Um figurão fez pesquisas constrangedoras às 3h da manhã no Goolag (142.250.190.46). Obtenha acesso root e execute a limpeza de TODOS os registros de logs de acesso do servidor!',
         type: 'wipe_server', targetIp: '142.250.190.46', targetDomain: 'goolag.com',
         rewardCash: 6000, rewardCrypto: 0.12, rewardRep: 500, difficulty: 'Hard', status: 'available',
       },
@@ -85,7 +97,7 @@ export class MissionEngine {
       },
       {
         id: 'mis-8', title: 'O Grande Golpe no MegaBank Global', employer: 'Robin Hood Cyber',
-        description: 'Invada o nó blindado do MegaBank (12.189.44.10) e quebre as defesas de Hasher v4.2 para drenar contas secretas offshore.',
+        description: 'Invada o nó blindado do MegaBank (12.189.44.10) quebre as defesas do Hasher e execute o Mega-Assalto à database central para drenar as contas offshore.',
         type: 'hack_bank', targetIp: '12.189.44.10', targetDomain: 'megabank.global',
         rewardCash: 35000, rewardCrypto: 0.75, rewardRep: 3500, difficulty: 'Elite', status: 'available',
       },
@@ -100,32 +112,68 @@ export class MissionEngine {
     return this.availableMissions.find(m => m.id === id);
   }
 
+  /**
+   * Missions still offered to a given player: the shared catalog minus the
+   * contracts that player already delivered (missions are one-shot per player).
+   */
+  public getPlayerMissions(player?: Player): Mission[] {
+    const completed = new Set(player?.completedMissionIds || []);
+    return this.getAvailableMissions().filter(m => !completed.has(m.id));
+  }
+
   public acceptMission(player: Player, id: string): { success: boolean; mission?: Mission; message: string } {
     const mission = this.getMissionById(id);
     if (!mission || mission.status !== 'available') return { success: false, message: 'Missão não encontrada ou indisponível.' };
     player.activeMissions = player.activeMissions || [];
+    player.completedMissionIds = player.completedMissionIds || [];
+    if (player.completedMissionIds.includes(id)) return { success: false, message: 'Você já concluiu este contrato.' };
     if (player.activeMissions.some(m => m.id === id)) return { success: false, message: 'Você já possui esta missão em andamento.' };
-    const activeMission: Mission = { ...mission, status: 'active' };
+    const activeMission: Mission = { ...mission, status: 'active', acceptedAt: Date.now() };
     player.activeMissions.push(activeMission);
+    // Progress only counts for operations finished after the contract was accepted.
+    if (player.missionProgress) delete player.missionProgress[id];
     return { success: true, mission: activeMission, message: `Contrato "${mission.title}" aceito com sucesso.` };
   }
 
-  public getPlayerMissions(_userId: string): Mission[] {
-    return this.getAvailableMissions();
+  /**
+   * Records a successfully completed operation against every active mission of
+   * the player whose target and objective match. Called from process completion.
+   */
+  public recordOperation(player: Player, op: MissionOperation, targetIp: string, fileName?: string): boolean {
+    let changed = false;
+    if (!player.operationLog || typeof player.operationLog !== 'object') player.operationLog = {};
+    player.operationLog[`${op}:${targetIp}`] = Date.now();
+
+    for (const mission of player.activeMissions || []) {
+      if (mission.targetIp !== targetIp) continue;
+      if (MISSION_OPERATION[mission.type] !== op) continue;
+      if (op === 'download' && mission.requiredFileName) {
+        if (!fileName || fileName.toLowerCase() !== mission.requiredFileName.toLowerCase()) continue;
+      }
+      if (!player.missionProgress || typeof player.missionProgress !== 'object') player.missionProgress = {};
+      if (!player.missionProgress[mission.id]) {
+        player.missionProgress[mission.id] = true;
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   private isMissionComplete(player: Player, mission: Mission): boolean {
+    if (player.missionProgress?.[mission.id]) return true;
+    // Missions accepted before progress tracking existed (no acceptedAt) fall back
+    // to the legacy per-target markers written by the old completion patch.
+    if (mission.acceptedAt) return false;
+    const legacy = (player.missionProgress || {}) as Record<string, boolean>;
     switch (mission.type) {
       case 'steal_file':
-        return !!mission.requiredFileName && player.software.some(s => s.name.toLowerCase() === mission.requiredFileName!.toLowerCase() || s.name.toLowerCase().includes(mission.requiredFileName!.toLowerCase()));
-      case 'hack_bank':
-      case 'wipe_server':
-      case 'ddos_target':
-      case 'plant_virus':
-      case 'trace_hacker':
-        return player.hackedIps.includes(mission.targetIp);
-      default:
-        return false;
+        return !!legacy[`download:${mission.targetIp}:${mission.requiredFileName || ''}`];
+      case 'wipe_server': return !!legacy[`wipe_logs:${mission.targetIp}`];
+      case 'hack_bank': return !!legacy[`bank_heist:${mission.targetIp}`];
+      case 'ddos_target': return !!legacy[`ddos:${mission.targetIp}`];
+      case 'plant_virus': return !!legacy[`spyware:${mission.targetIp}`];
+      case 'trace_hacker': return player.hackedIps.includes(mission.targetIp);
+      default: return false;
     }
   }
 
@@ -135,7 +183,7 @@ export class MissionEngine {
     if (index === -1) return { success: false, message: 'Esta missão não está ativa para o seu jogador.' };
     const mission = player.activeMissions[index];
     if (!this.isMissionComplete(player, mission)) {
-      return { success: false, mission, message: `Objetivo ainda não concluído: ${mission.title}. Verifique se a operação necessária foi realmente finalizada.` };
+      return { success: false, mission, message: `Objetivo ainda não concluído: ${mission.title}. Execute a operação exigida no alvo ${mission.targetIp} depois de aceitar o contrato.` };
     }
     player.cash += mission.rewardCash;
     if (!player.cryptoWallet) player.cryptoWallet = { btc: 0, eth: 0, doge: 0, shdw: 0, pepe: 0 };
@@ -144,6 +192,9 @@ export class MissionEngine {
     player.reputation += mission.rewardRep;
     const completedMission: Mission = { ...mission, status: 'completed' };
     player.activeMissions.splice(index, 1);
+    player.completedMissionIds = player.completedMissionIds || [];
+    if (!player.completedMissionIds.includes(id)) player.completedMissionIds.push(id);
+    if (player.missionProgress) delete player.missionProgress[id];
     return { success: true, mission: completedMission, message: `Missão concluída! +$${mission.rewardCash.toLocaleString()} USD, +${mission.rewardCrypto} BTC e +${mission.rewardRep} REP.` };
   }
 
@@ -156,22 +207,49 @@ export class MissionEngine {
     return null;
   }
 
-  public generateRandomMission(): Mission {
-    const difficulties: MissionDifficulty[] = ['Easy', 'Medium', 'Hard'];
-    const types: MissionType[] = ['steal_file', 'wipe_server', 'plant_virus'];
+  /**
+   * Generates a contract against a real server of the world so it can actually
+   * be completed. Returns null when no suitable target exists.
+   */
+  public generateRandomMission(servers: VirtualServer[]): Mission | null {
+    const pick = <T>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
+    const candidates = servers.filter(s => s && s.ip && s.type !== 'honeypot');
+    if (candidates.length === 0) return null;
+
+    const options: Array<{ type: MissionType; server: VirtualServer; fileName?: string }> = [];
+    for (const server of candidates) {
+      const files = (server.files || []).filter(f => f?.name);
+      if (files.length > 0) options.push({ type: 'steal_file', server, fileName: pick(files).name });
+      options.push({ type: 'wipe_server', server });
+      options.push({ type: 'plant_virus', server });
+      if (server.type === 'bank') options.push({ type: 'hack_bank', server });
+    }
+    const choice = pick(options);
+    const { server } = choice;
+
+    const hasher = server.security?.hasherLevel || 1;
+    const diff: MissionDifficulty = hasher < 5 ? 'Easy' : hasher < 15 ? 'Medium' : hasher < 30 ? 'Hard' : 'Elite';
+    const rewardMultiplier = diff === 'Easy' ? 1 : diff === 'Medium' ? 2.5 : diff === 'Hard' ? 5 : 10;
     const employers = ['Guerrilha da Pizza', 'Anti-Pear Resistance', 'Meme Cartel', 'NullByte Syndicate', 'RedTeam Anonymous'];
-    const diff = difficulties[Math.floor(Math.random() * difficulties.length)];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const emp = employers[Math.floor(Math.random() * employers.length)];
-    const ip = `${Math.floor(Math.random() * 200 + 10)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 250 + 2)}`;
-    const rewardMultiplier = diff === 'Easy' ? 1 : diff === 'Medium' ? 2.5 : 5;
+    const emp = pick(employers);
+    const objective: Record<MissionType, string> = {
+      steal_file: `baixe o arquivo ${choice.fileName}`,
+      wipe_server: 'apague todos os logs de acesso',
+      plant_virus: 'implante um Spyware',
+      hack_bank: 'execute o Mega-Assalto à database central',
+      ddos_target: 'derrube o servidor com um DDoS',
+      trace_hacker: 'obtenha acesso ROOT',
+    };
+
     const mission: Mission = {
       id: `mis-${uuidv4().substring(0, 8)}`,
       title: `Operação Secreta // ${emp}`,
       employer: emp,
-      description: `Contrato de espionagem cibernética no host ${ip}. Cumpra os objetivos e não esqueça de limpar os logs.`,
-      type,
-      targetIp: ip,
+      description: `Contrato de espionagem cibernética contra ${server.hostname} (${server.ip}): invada o servidor e ${objective[choice.type]}. Não esqueça de limpar os seus rastros.`,
+      type: choice.type,
+      targetIp: server.ip,
+      targetDomain: server.domain,
+      requiredFileName: choice.fileName,
       rewardCash: Math.round(750 * rewardMultiplier),
       rewardCrypto: Number((0.015 * rewardMultiplier).toFixed(4)),
       rewardRep: Math.round(120 * rewardMultiplier),
