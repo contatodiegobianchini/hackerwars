@@ -71,3 +71,14 @@ Abra seu navegador em [http://localhost:5173](http://localhost:5173) para jogar!
 npm run build
 npm start
 ```
+
+### 3. Deploy na ShardCloud (processo único: API + Socket.IO + client)
+
+O arquivo `.shardcloud` já está configurado. No primeiro boot, `scripts/shardcloud-start.mjs` faz o build (`npm run build:all`, com `VITE_API_URL=` vazio para o client usar a mesma origem) e inicia `server/dist/serve-client.js`.
+
+1. Suba o projeto (zip/Git) na ShardCloud. Ajuste `SUBDOMAIN` e `MEMORY` no `.shardcloud` se precisar (o build precisa de ~1GB; depois pode reduzir).
+2. Configure as variáveis de ambiente no painel:
+   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+   - `JWT_SECRET` (mín. 32 caracteres), `ADMIN_PASSWORD` (mín. 20 caracteres)
+   - `FRONTEND_ORIGIN` = URL pública do app (ex.: `https://hackerwars.shardweb.app`) — necessário para o CORS dos POSTs.
+3. A porta vem de `PORT` (o servidor já respeita).
