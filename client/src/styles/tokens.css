@@ -15,9 +15,11 @@
   --apagado: #6E76A0;
   --fosforo: #FFB547;
   --fosforo-claro: #FFC56B;
-  --sirene: #FF4D5E;
+  /* Toque cyberpunk: neon só em tensão e sucesso */
+  --sirene: #FF2E88;      /* neon magenta: rastreamento, perigo */
+  --neon-ciano: #2DE2E6;  /* neon ciano: invasão, sucesso */
   --viatura: #4D8DFF;
-  --ok: #6FD39A;
+  --ok: var(--neon-ciano);
 
   /* Tipografia */
   --font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;

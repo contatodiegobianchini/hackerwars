@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGameStore } from '../../stores/useGameStore.js';
-import { LogOut, MessageSquare, MoreVertical, Music, ShieldAlert, Terminal, Volume2, VolumeX, X } from 'lucide-react';
+import { LogOut, MessageSquare, MoreVertical, Music, ShieldAlert, Terminal, Volume2, VolumeX } from 'lucide-react';
 import { useNavCounts } from './useNavCounts.js';
 
 const formatCash = (value: number) =>
@@ -10,7 +10,7 @@ const formatCash = (value: number) =>
 
 export const Header: React.FC = () => {
   const {
-    player, activeConnection, disconnectTarget, setCurrentView, processes,
+    player, activeConnection, setCurrentView, processes,
     soundEnabled, toggleSound, isSoundtrackPlaying, toggleSoundtrack,
     isMobileMenuOpen, toggleMobileMenu, setMobileMenuOpen, toggleTerminal, isTerminalOpen,
     isChatOpen, toggleChat, logout,
@@ -30,17 +30,7 @@ export const Header: React.FC = () => {
       </button>
 
       <div className="flex-1 min-w-0 hidden md:flex justify-center">
-        {activeConnection ? (
-          <div className="hw-link-status hw-link-status--on">
-            <span className="hw-link-status__dot" />
-            <button onClick={() => setCurrentView('target_server')} className="truncate">
-              Conectado a <span className="ip">{activeConnection.ip}</span> <span className="hidden xl:inline">{activeConnection.hostname}</span>
-            </button>
-            <button onClick={disconnectTarget} className="text-gray-500 hover:text-red-500" title="Desconectar" aria-label="Desconectar do alvo">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
+        {!activeConnection && (
           <div className="hw-link-status">
             <span className="hw-link-status__dot" />
             <span>Sem conexão · <span className="ip">{player.ip}</span></span>

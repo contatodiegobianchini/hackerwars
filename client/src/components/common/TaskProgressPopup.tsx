@@ -5,7 +5,8 @@ import { Activity } from 'lucide-react';
 export const TaskProgressPopup: React.FC = () => {
   const { processes, currentView, setCurrentView } = useGameStore();
 
-  if (processes.length === 0 || currentView === 'processes') return null;
+  // Screens that already list running processes don't need the floating card.
+  if (processes.length === 0 || ['processes', 'my_server', 'target_server'].includes(currentView)) return null;
 
   const currentTask = processes[0];
   const remainingSec = Math.max(0, Math.ceil((currentTask.endTime - Date.now()) / 1000));

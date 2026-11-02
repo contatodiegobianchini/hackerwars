@@ -1,6 +1,6 @@
 # Hacker Wars — sistema de interface
 
-Direção visual: **lan house de madrugada**. Fundo azul-noite, fósforo âmbar para tudo que o jogador pode fazer, sirene (vermelho/azul) só para polícia e perigo, verde só para concluído.
+Direção visual: **lan house de madrugada com toque cyberpunk**. Fundo azul-noite e fósforo âmbar para tudo que o jogador pode fazer. Neon só em tensão e sucesso: magenta (`--sirene`) para rastreamento e perigo, ciano (`--neon-ciano`) para invasão e concluído. Efeitos: scanlines na faixa de rastreamento e um glitch curto quando uma senha é quebrada.
 
 ## Navegação
 
@@ -8,10 +8,10 @@ A interface segue o ciclo do jogo (descobrir → invadir → explorar → sumir 
 
 | Zona | Telas (abas) |
 | --- | --- |
-| Início | Visão geral, Processos, Guia do jogo |
+| Início | Próximo passo, Processos, Guia do jogo |
 | Rede | Alvos, Alvo conectado |
 | Operações | História, Contratos |
-| Base | Software, Hardware, Defesa, Meus logs, Datacenter |
+| Base | Minha máquina, Software, Hardware, Defesa, Meus logs, Datacenter |
 | Dinheiro | Banco, Cripto, Black Market, Clãs, Ranking |
 
 - Computador: barra lateral com as zonas (`Sidebar`) e abas no topo do conteúdo (`ZoneTabs`).
@@ -19,6 +19,12 @@ A interface segue o ciclo do jogo (descobrir → invadir → explorar → sumir 
 - DarkIRC é um painel lateral (`ChatDrawer`) que abre sobre qualquer zona. `setCurrentView('dark_chat')` abre o painel.
 - Terminal: botão no cabeçalho ou tecla `` ` ``.
 - Selos só mostram o que pede atenção: processos ativos, contratos/capítulos prontos para entregar, infecções, mensagens novas (`useNavCounts`).
+
+## Telas principais
+
+- **Início** (`HomeView`): o "próximo passo" vem de `client/src/game/nextStep.ts` (função pura, testada em `nextStep.test.ts`). Ordem: recompensa pronta (desfecho de capítulo ou contrato cumprido) → objetivo do capítulo atual → contrato aceito → contrato novo ao alcance → varrer a rede. Quando falta algo (cracker fraco, disco cheio, sem spyware), o passo diz o quê e leva à tela que resolve.
+- **Alvo** (`TargetServerView`): três etapas reais, numeradas: Invadir → Explorar → Sumir. Objetivos de capítulo e contratos que apontam para o alvo aparecem no topo; arquivos-objetivo ficam marcados. O DDoS fica num bloco separado, porque não depende de invasão.
+- **Faixa de rastreamento** (`TraceBar`): fica sob o cabeçalho em qualquer tela enquanto houver conexão, com tempo restante, proxies/VPN e o botão Desconectar.
 
 ## Tokens e tipografia
 
@@ -37,6 +43,5 @@ A interface segue o ciclo do jogo (descobrir → invadir → explorar → sumir 
 
 ## Próximas fases
 
-2. Início com "próximo passo" e tela do alvo em etapas com faixa de rastreamento.
-3. Quadro único de operações (História + Contratos + Syndicate); DDoS como ação separada.
-4. Migração visual e de textos das demais telas; capítulo 1 como tutorial.
+2. Quadro único de operações (História + Contratos + Syndicate); DDoS como ação separada.
+3. Migração visual e de textos das demais telas; capítulo 1 como tutorial.
