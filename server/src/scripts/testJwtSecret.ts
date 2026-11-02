@@ -7,8 +7,7 @@ console.log('--- Starting JWT Secret Validation Security Tests ---');
 const serverDir = path.resolve(process.cwd(), 'server');
 const baseEnv = {
   ...process.env,
-  SUPABASE_URL: process.env.SUPABASE_URL || 'https://dummy.supabase.co',
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_supabase_service_role_key_for_testing'
+  DATABASE_URL: process.env.DATABASE_URL || 'postgres://dummy:dummy@127.0.0.1:1/dummy',
 };
 
 // Test 1: Missing JWT_SECRET should throw error

@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
-process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://dummy.supabase.co';
-process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_service_role_key_32_chars_long_min';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://dummy:dummy@127.0.0.1:1/dummy';
 
 import { GameWorld } from './engine/GameWorld.js';
 
