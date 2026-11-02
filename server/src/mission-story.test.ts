@@ -14,11 +14,9 @@ function makePlayer(): any {
   };
 }
 
-test('mission requires an operation after accepting and cannot be farmed', () => {
+test('steal_file mission: downloading the required file completes it, and it cannot be farmed', () => {
   const engine = new MissionEngine();
   const player = makePlayer();
-  // File already in inventory before accepting must not complete the contract.
-  player.software.push({ name: 'receita_secreta_molho_especial.txt', sizeMb: 1 });
   assert.equal(engine.acceptMission(player, 'mis-1').success, true);
   assert.equal(engine.claimMission(player, 'mis-1').success, false);
 
@@ -28,13 +26,42 @@ test('mission requires an operation after accepting and cannot be farmed', () =>
   assert.equal(engine.claimMission(player, 'mis-1').success, false);
 
   engine.recordOperation(player, 'download', '192.168.10.15', 'receita_secreta_molho_especial.txt');
-  const claim = engine.claimMission(player, 'mis-1');
-  assert.equal(claim.success, true);
+  assert.equal(engine.claimMission(player, 'mis-1').success, true);
   assert.equal(player.cash, 500);
 
   // Cannot re-accept and re-claim the same contract.
   assert.equal(engine.acceptMission(player, 'mis-1').success, false);
   assert.equal(engine.getPlayerMissions(player).some(m => m.id === 'mis-1'), false);
+});
+
+test('bug fix: file downloaded before accepting the contract still completes it', () => {
+  const engine = new MissionEngine();
+  const player = makePlayer();
+  player.software.push({ name: 'receita_secreta_molho_especial.txt', sizeMb: 1 });
+  const accepted = engine.acceptMission(player, 'mis-1');
+  assert.equal(accepted.success, true);
+  assert.match(accepted.message, /entregar/);
+  assert.equal(player.missionProgress['mis-1'], true);
+  assert.equal(engine.claimMission(player, 'mis-1').success, true);
+});
+
+test('bug fix: legacy contract accepted before the update completes from the inventory', () => {
+  const engine = new MissionEngine();
+  const player = makePlayer();
+  const mission = engine.getMissionById('mis-1')!;
+  player.activeMissions = [{ ...mission, status: 'active' }]; // no acceptedAt, no progress markers
+  player.software.push({ name: 'receita_secreta_molho_especial.txt', sizeMb: 1 });
+  assert.equal(engine.claimMission(player, 'mis-1').success, true);
+});
+
+test('plant_virus mission counts a spyware that is already planted on the target', () => {
+  const engine = new MissionEngine();
+  const player = makePlayer();
+  const mission = engine.generateRandomMission([{ ip: '10.9.9.9', hostname: 'x', type: 'corporate', security: { hasherLevel: 1 }, files: [] } as any])!;
+  mission.type = 'plant_virus';
+  engine.acceptMission(player, mission.id);
+  const servers: Record<string, any> = { '10.9.9.9': { activeSpyware: [{ ownerId: 'p1' }] } };
+  assert.equal(engine.claimMission(player, mission.id, ip => servers[ip]).success, true);
 });
 
 test('wipe_server mission completes from a wipe_logs operation', () => {

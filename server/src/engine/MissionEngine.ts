@@ -2,6 +2,8 @@ import { Mission, MissionDifficulty, MissionType, Player, VirtualServer } from '
 import { GameWorld } from './GameWorld.js';
 import { v4 as uuidv4 } from 'uuid';
 
+export type ServerLookup = (ip: string) => VirtualServer | undefined;
+
 export type MissionOperation = 'crack' | 'download' | 'wipe_logs' | 'ddos' | 'spyware' | 'bank_heist';
 
 /** Which completed operation satisfies each mission type. */
@@ -121,7 +123,7 @@ export class MissionEngine {
     return this.getAvailableMissions().filter(m => !completed.has(m.id));
   }
 
-  public acceptMission(player: Player, id: string): { success: boolean; mission?: Mission; message: string } {
+  public acceptMission(player: Player, id: string, getServer?: ServerLookup): { success: boolean; mission?: Mission; message: string } {
     const mission = this.getMissionById(id);
     if (!mission || mission.status !== 'available') return { success: false, message: 'Missão não encontrada ou indisponível.' };
     player.activeMissions = player.activeMissions || [];
@@ -130,9 +132,17 @@ export class MissionEngine {
     if (player.activeMissions.some(m => m.id === id)) return { success: false, message: 'Você já possui esta missão em andamento.' };
     const activeMission: Mission = { ...mission, status: 'active', acceptedAt: Date.now() };
     player.activeMissions.push(activeMission);
-    // Progress only counts for operations finished after the contract was accepted.
     if (player.missionProgress) delete player.missionProgress[id];
-    return { success: true, mission: activeMission, message: `Contrato "${mission.title}" aceito com sucesso.` };
+    // A file already on the player's machine (or a spyware already planted) counts.
+    this.syncProgress(player, getServer);
+    const ready = !!player.missionProgress?.[id];
+    return {
+      success: true,
+      mission: activeMission,
+      message: ready
+        ? `Contrato "${mission.title}" aceito. Você já cumpriu o objetivo: é só entregar.`
+        : `Contrato "${mission.title}" aceito com sucesso.`,
+    };
   }
 
   /**
@@ -159,6 +169,34 @@ export class MissionEngine {
     return changed;
   }
 
+  /**
+   * Marks active missions whose objective is already true in the world state:
+   * the required file is on the player's machine, or the player's spyware is
+   * planted on the target. Missions are one-shot per player, so this cannot be
+   * used to collect the same reward twice.
+   */
+  public syncProgress(player: Player, getServer?: ServerLookup): boolean {
+    let changed = false;
+    for (const mission of player.activeMissions || []) {
+      if (player.missionProgress?.[mission.id]) continue;
+      let done = false;
+      if (mission.type === 'steal_file' && mission.requiredFileName) {
+        const wanted = mission.requiredFileName.toLowerCase();
+        done = (player.software || []).some(s => s.name?.toLowerCase() === wanted);
+      } else if (mission.type === 'plant_virus' && getServer) {
+        done = !!getServer(mission.targetIp)?.activeSpyware?.some(sp => sp.ownerId === player.id);
+      } else if (mission.type === 'trace_hacker') {
+        done = (player.hackedIps || []).includes(mission.targetIp);
+      }
+      if (done) {
+        if (!player.missionProgress || typeof player.missionProgress !== 'object') player.missionProgress = {};
+        player.missionProgress[mission.id] = true;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   private isMissionComplete(player: Player, mission: Mission): boolean {
     if (player.missionProgress?.[mission.id]) return true;
     // Missions accepted before progress tracking existed (no acceptedAt) fall back
@@ -177,8 +215,9 @@ export class MissionEngine {
     }
   }
 
-  public claimMission(player: Player, id: string): { success: boolean; mission?: Mission; message: string } {
+  public claimMission(player: Player, id: string, getServer?: ServerLookup): { success: boolean; mission?: Mission; message: string } {
     player.activeMissions = player.activeMissions || [];
+    this.syncProgress(player, getServer);
     const index = player.activeMissions.findIndex(m => m.id === id);
     if (index === -1) return { success: false, message: 'Esta missão não está ativa para o seu jogador.' };
     const mission = player.activeMissions[index];
