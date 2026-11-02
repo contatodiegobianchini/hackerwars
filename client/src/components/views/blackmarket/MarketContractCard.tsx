@@ -19,7 +19,7 @@ export const MarketContractCard: React.FC<MarketContractCardProps> = ({
   const hasLevel = crackerLevel >= contract.requiredCrackerLevel;
   const target = useGameStore.getState().servers.find(s => s.ip === contract.targetIp) ||
                  useGameStore.getState().allServers.find(s => s.ip === contract.targetIp);
-  const isBreached = target ? target.security.isBreached : false;
+  const isBreached = !!target && player.hackedIps.includes(target.ip);
 
   return (
     <div className="bg-white text-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between space-y-4">

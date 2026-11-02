@@ -41,6 +41,10 @@ function secureRandom(): number {
   return buf[0] / 0x100000000;
 }
 
+export const FACTION_SWITCH_FEE = 5000;
+export const FACTION_SWITCH_FREE_REP = 1000;
+export const FACTION_SWITCH_COOLDOWN_MS = 30 * 60 * 1000;
+
 export class GameWorld {
   private players: Map<string, { userId: string; player: Player }> = new Map();
   private playersById: Map<string, { userId: string; player: Player }> = new Map();
@@ -1630,12 +1634,30 @@ export class GameWorld {
     if (player.activeFactionAlignment === faction) {
       return { success: false, player, message: 'Você já está alinhado com esta facção.' };
     }
+
+    // Switching sides is not free: there is a cooldown and a "bribe" fee, waived
+    // when the player already earned enough standing with the new faction.
+    const now = Date.now();
+    const cooldownMs = FACTION_SWITCH_COOLDOWN_MS;
+    const lastSwitch = player.factionSwitchedAt || 0;
+    if (now - lastSwitch < cooldownMs) {
+      const remainingMin = Math.ceil((cooldownMs - (now - lastSwitch)) / 60000);
+      return { success: false, player, message: `Você trocou de facção recentemente. Aguarde ${remainingMin} min para mudar de lado novamente.` };
+    }
+    const targetRep = player.factionReputation?.[faction] || 0;
+    const fee = targetRep >= FACTION_SWITCH_FREE_REP ? 0 : FACTION_SWITCH_FEE;
+    if (player.cash < fee) {
+      return { success: false, player, message: `Trocar de facção custa $${fee.toLocaleString()} USD (grátis com ${FACTION_SWITCH_FREE_REP} de reputação na facção). Saldo insuficiente.` };
+    }
+    player.cash -= fee;
+    if (player.bankAccounts && player.bankAccounts.length > 0) player.bankAccounts[0].balance = player.cash;
+    player.factionSwitchedAt = now;
     player.activeFactionAlignment = faction;
     this.savePlayerState(userId);
     return {
       success: true,
       player,
-      message: `Você agora está alinhado oficialmente com a facção ${faction.toUpperCase()}!`,
+      message: `Você agora está alinhado oficialmente com a facção ${faction.toUpperCase()}!${fee > 0 ? ` (-$${fee.toLocaleString()} USD)` : ''}`,
     };
   }
 

@@ -1,4 +1,4 @@
-import { Mission, MissionDifficulty, MissionType, Player } from '../types/game.js';
+import { Mission, MissionDifficulty, MissionType, Player, VirtualServer } from '../types/game.js';
 import { GameWorld } from './GameWorld.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -207,22 +207,49 @@ export class MissionEngine {
     return null;
   }
 
-  public generateRandomMission(): Mission {
-    const difficulties: MissionDifficulty[] = ['Easy', 'Medium', 'Hard'];
-    const types: MissionType[] = ['steal_file', 'wipe_server', 'plant_virus'];
+  /**
+   * Generates a contract against a real server of the world so it can actually
+   * be completed. Returns null when no suitable target exists.
+   */
+  public generateRandomMission(servers: VirtualServer[]): Mission | null {
+    const pick = <T>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
+    const candidates = servers.filter(s => s && s.ip && s.type !== 'honeypot');
+    if (candidates.length === 0) return null;
+
+    const options: Array<{ type: MissionType; server: VirtualServer; fileName?: string }> = [];
+    for (const server of candidates) {
+      const files = (server.files || []).filter(f => f?.name);
+      if (files.length > 0) options.push({ type: 'steal_file', server, fileName: pick(files).name });
+      options.push({ type: 'wipe_server', server });
+      options.push({ type: 'plant_virus', server });
+      if (server.type === 'bank') options.push({ type: 'hack_bank', server });
+    }
+    const choice = pick(options);
+    const { server } = choice;
+
+    const hasher = server.security?.hasherLevel || 1;
+    const diff: MissionDifficulty = hasher < 5 ? 'Easy' : hasher < 15 ? 'Medium' : hasher < 30 ? 'Hard' : 'Elite';
+    const rewardMultiplier = diff === 'Easy' ? 1 : diff === 'Medium' ? 2.5 : diff === 'Hard' ? 5 : 10;
     const employers = ['Guerrilha da Pizza', 'Anti-Pear Resistance', 'Meme Cartel', 'NullByte Syndicate', 'RedTeam Anonymous'];
-    const diff = difficulties[Math.floor(Math.random() * difficulties.length)];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const emp = employers[Math.floor(Math.random() * employers.length)];
-    const ip = `${Math.floor(Math.random() * 200 + 10)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 250 + 2)}`;
-    const rewardMultiplier = diff === 'Easy' ? 1 : diff === 'Medium' ? 2.5 : 5;
+    const emp = pick(employers);
+    const objective: Record<MissionType, string> = {
+      steal_file: `baixe o arquivo ${choice.fileName}`,
+      wipe_server: 'apague todos os logs de acesso',
+      plant_virus: 'implante um Spyware',
+      hack_bank: 'execute o Mega-Assalto à database central',
+      ddos_target: 'derrube o servidor com um DDoS',
+      trace_hacker: 'obtenha acesso ROOT',
+    };
+
     const mission: Mission = {
       id: `mis-${uuidv4().substring(0, 8)}`,
       title: `Operação Secreta // ${emp}`,
       employer: emp,
-      description: `Contrato de espionagem cibernética no host ${ip}. Cumpra os objetivos e não esqueça de limpar os logs.`,
-      type,
-      targetIp: ip,
+      description: `Contrato de espionagem cibernética contra ${server.hostname} (${server.ip}): invada o servidor e ${objective[choice.type]}. Não esqueça de limpar os seus rastros.`,
+      type: choice.type,
+      targetIp: server.ip,
+      targetDomain: server.domain,
+      requiredFileName: choice.fileName,
       rewardCash: Math.round(750 * rewardMultiplier),
       rewardCrypto: Number((0.015 * rewardMultiplier).toFixed(4)),
       rewardRep: Math.round(120 * rewardMultiplier),

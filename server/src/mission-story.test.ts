@@ -78,3 +78,19 @@ test('story: ddos objective requires the player to have performed the attack', (
   chap = story.getChapters(player, servers).find(c => c.id === 'chap-7')!;
   assert.equal(chap.objectives[1].completed, true);
 });
+
+test('random missions always target a real, completable server', () => {
+  const engine = new MissionEngine();
+  assert.equal(engine.generateRandomMission([]), null);
+  const servers: any[] = [
+    { ip: '10.0.0.5', hostname: 'corp.example', type: 'corporate', security: { hasherLevel: 8 }, files: [{ name: 'segredo.pdf' }] },
+    { ip: '10.0.0.6', hostname: 'bank.example', type: 'bank', security: { hasherLevel: 20 }, files: [] },
+    { ip: '10.0.0.7', hostname: 'trap.example', type: 'honeypot', security: { hasherLevel: 1 }, files: [] },
+  ];
+  for (let i = 0; i < 50; i++) {
+    const m = engine.generateRandomMission(servers)!;
+    assert.ok(['10.0.0.5', '10.0.0.6'].includes(m.targetIp));
+    if (m.type === 'steal_file') assert.equal(m.requiredFileName, 'segredo.pdf');
+    if (m.type === 'hack_bank') assert.equal(m.targetIp, '10.0.0.6');
+  }
+});

@@ -427,6 +427,7 @@ export interface Player {
   completedStoryChapters: string[];
   factionReputation: Record<FactionType, number>;
   activeFactionAlignment?: FactionType;
+  factionSwitchedAt?: number;
   unlockedStoryPerks: StoryPerk[];
   activeStoryChapterId?: string;
   lockdownUntil?: number;
