@@ -1,7 +1,8 @@
+import { useGameStore } from '../../../stores/useGameStore.js';
 import React from 'react';
 import { ShoppingBag, Package, Sparkles, Award } from 'lucide-react';
 
-export type BlackMarketTab = 'crates' | 'auctions' | 'contracts';
+export type BlackMarketTab = 'crates' | 'auctions';
 
 interface MarketHeaderProps {
   activeTab: BlackMarketTab;
@@ -45,13 +46,12 @@ export const MarketHeader: React.FC<MarketHeaderProps> = ({ activeTab, setActive
           </button>
 
           <button
-            onClick={() => setActiveTab('contracts')}
-            className={`px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 ${
-              activeTab === 'contracts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-            }`}
+            onClick={() => useGameStore.getState().setCurrentView('missions')}
+            className="px-3 py-1.5 rounded-lg transition flex items-center space-x-1.5 text-gray-500 hover:text-gray-900"
+            title="Os contratos do Syndicate agora ficam em Operações › Quadro"
           >
             <Award className="w-3.5 h-3.5 text-blue-500" />
-            <span>Contratos Syndicate</span>
+            <span>Contratos Syndicate ↗</span>
           </button>
         </div>
       </div>

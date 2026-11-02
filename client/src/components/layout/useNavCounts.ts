@@ -1,21 +1,26 @@
+import { useMemo } from 'react';
 import { useGameStore } from '../../stores/useGameStore.js';
+import { buildOperations } from '../../game/operations.js';
 import type { GameView } from '../../stores/useGameStore.js';
 import type { ZoneId } from '../../navigation.js';
 
 /** Counts shown as badges: only things that change and ask for the player's attention. */
 export function useNavCounts() {
-  const { player, processes, darkChatChannels, chatSeenCount, isChatOpen, storyChapters } = useGameStore();
+  const { player, processes, darkChatChannels, chatSeenCount, isChatOpen, storyChapters, missions, contracts, allServers } = useGameStore();
 
   const totalMessages = darkChatChannels.reduce((n, c) => n + (c.messages?.length || 0), 0);
   const unreadChat = isChatOpen ? 0 : Math.max(0, totalMessages - chatSeenCount);
 
-  const readyContracts = (player?.activeMissions || []).filter(m => player?.missionProgress?.[m.id]).length;
-  const readyChapters = storyChapters.filter(c => c.unlocked && !c.isCompleted && c.objectives.length > 0 && c.objectives.every(o => o.completed)).length;
+  const ready = useMemo(() => (player
+    ? buildOperations({ player, storyChapters, missions, contracts, servers: allServers }).filter(op => op.state === 'ready')
+    : []), [player, storyChapters, missions, contracts, allServers]);
+  const readyChapters = ready.filter(op => op.kind === 'story').length;
+  const readyContracts = ready.length - readyChapters;
   const infections = player?.infections?.length || 0;
 
   const tab: Partial<Record<GameView, { count: number; action?: boolean }>> = {
     processes: { count: processes.length },
-    missions: { count: readyContracts, action: true },
+    missions: { count: ready.length, action: true },
     campaign: { count: readyChapters, action: true },
     antivirus: { count: infections, action: true },
   };

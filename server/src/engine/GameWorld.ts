@@ -859,6 +859,9 @@ export class GameWorld {
     const inMissions = this.missionEngine.getAvailableMissions()
       .some(m => m.targetIp === targetIp && m.requiredFileName?.toLowerCase() === name);
     if (inMissions) return true;
+    const inContracts = this.contractsAndRaidEngine.getContracts()
+      .some(c => c.targetIp === targetIp && c.targetFileName?.toLowerCase() === name);
+    if (inContracts) return true;
     return this.storyEngine.getChapters()
       .some(c => c.objectives.some(o => o.targetIp === targetIp && o.targetFileName?.toLowerCase() === name));
   }

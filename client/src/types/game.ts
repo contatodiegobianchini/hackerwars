@@ -412,6 +412,7 @@ export interface Player {
   activeMissions: Mission[];
   missionProgress?: Record<string, boolean>;
   completedMissionIds?: string[];
+  completedContractIds?: string[];
   operationLog?: Record<string, number>;
   discoveredIps: string[];
   hackedIps: string[];

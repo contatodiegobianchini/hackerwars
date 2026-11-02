@@ -10,7 +10,7 @@ A interface segue o ciclo do jogo (descobrir → invadir → explorar → sumir 
 | --- | --- |
 | Início | Próximo passo, Processos, Guia do jogo |
 | Rede | Alvos, Alvo conectado |
-| Operações | História, Contratos |
+| Operações | Quadro, História |
 | Base | Minha máquina, Software, Hardware, Defesa, Meus logs, Datacenter |
 | Dinheiro | Banco, Cripto, Black Market, Clãs, Ranking |
 
@@ -24,6 +24,7 @@ A interface segue o ciclo do jogo (descobrir → invadir → explorar → sumir 
 
 - **Início** (`HomeView`): o "próximo passo" vem de `client/src/game/nextStep.ts` (função pura, testada em `nextStep.test.ts`). Ordem: recompensa pronta (desfecho de capítulo ou contrato cumprido) → objetivo do capítulo atual → contrato aceito → contrato novo ao alcance → varrer a rede. Quando falta algo (cracker fraco, disco cheio, sem spyware), o passo diz o quê e leva à tela que resolve.
 - **Alvo** (`TargetServerView`): três etapas reais, numeradas: Invadir → Explorar → Sumir. Objetivos de capítulo e contratos que apontam para o alvo aparecem no topo; arquivos-objetivo ficam marcados. O DDoS fica num bloco separado, porque não depende de invasão.
+- **Operações › Quadro** (`OperationsBoard`): uma lista só para capítulos da história, contratos e contratos do Syndicate, montada por `client/src/game/operations.ts` (testada em `operations.test.ts`). Cada linha mostra a situação (pronto, em andamento, disponível, bloqueado, concluído) e o que bloqueia antes de aceitar ("Precisa de cracker v22,0"). Ao abrir uma linha: briefing, checklist de objetivos e as ações (aceitar, entregar, conectar, evoluir cracker).
 - **Faixa de rastreamento** (`TraceBar`): fica sob o cabeçalho em qualquer tela enquanto houver conexão, com tempo restante, proxies/VPN e o botão Desconectar.
 
 ## Tokens e tipografia
@@ -43,5 +44,4 @@ A interface segue o ciclo do jogo (descobrir → invadir → explorar → sumir 
 
 ## Próximas fases
 
-2. Quadro único de operações (História + Contratos + Syndicate); DDoS como ação separada.
-3. Migração visual e de textos das demais telas; capítulo 1 como tutorial.
+4. Migração visual e de textos das demais telas; capítulo 1 como tutorial.
