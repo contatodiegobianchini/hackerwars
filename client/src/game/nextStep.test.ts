@@ -63,3 +63,11 @@ test('suggestions only include contracts the current cracker can handle', () => 
   const list = suggestContracts({ player: player(), storyChapters: [], missions, servers: [server('1.1.1.2', 0.8), server('1.1.1.3', 20)] });
   assert.deepEqual(list.map(s => s.mission.id), ['a']);
 });
+
+test('a pending hunt (tracks left behind) comes before everything else', () => {
+  const mission = { id: 'mis-1', title: 'Molho', employer: 'Rivais', type: 'steal_file', targetIp: '1.2.3.4', rewardCash: 500, rewardCrypto: 0.01, rewardRep: 10 };
+  const hunt = { id: 'h', ip: '7.7.7.7', hostname: 'corp', serverType: 'corporate', kind: 'fine', createdAt: 0, dueAt: 1000 };
+  const step = computeNextStep({ player: player({ activeMissions: [mission], missionProgress: { 'mis-1': true }, pendingHunts: [hunt] }), missions: [], servers: [], storyChapters: [] });
+  assert.deepEqual(step.primary.action, { kind: 'connect', ip: '7.7.7.7' });
+  assert.equal(step.deadline, 1000);
+});

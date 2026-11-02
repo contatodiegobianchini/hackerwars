@@ -26,7 +26,9 @@ export function useNavCounts() {
   };
 
   const zone: Partial<Record<ZoneId, { count: number; alert?: boolean }>> = {
-    inicio: { count: processes.length },
+    inicio: (player?.pendingHunts?.length || 0) > 0
+      ? { count: player!.pendingHunts!.length, alert: true }
+      : { count: processes.length },
     operacoes: { count: readyContracts + readyChapters },
     base: { count: infections, alert: true },
   };

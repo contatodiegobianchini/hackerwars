@@ -143,3 +143,52 @@ test('syndicate contracts: per-player completion and real objective checks', asy
   b.software = [{ name: 'Cracker', type: 'cracker', version: 10, sizeMb: 1 }, { name: 'formula_secreta_colacoca_2026.pdf', sizeMb: 1 }];
   assert.equal(engine.claimContract(b, 'cnt-1').success, true);
 });
+
+test('hunts: tracks left on a breached server open a hunt only after leaving, and wiping cancels it', async () => {
+  const { reconcileHunts, HUNT_FEATURE_START } = await import('./engine/HuntEngine.js');
+  const t = HUNT_FEATURE_START + 1000;
+  const server: any = { ip: '9.9.9.9', hostname: 'corp', type: 'corporate', logs: [{ id: 'l', timestamp: t, ip: '1.1.1.1', action: 'x', formattedTime: '' }] };
+  const p = makePlayer();
+  p.ip = '1.1.1.1';
+  p.hackedIps = ['9.9.9.9'];
+  p.connectedIp = '9.9.9.9';
+
+  // Still connected: no countdown yet.
+  assert.equal(reconcileHunts(p, [server], t).opened.length, 0);
+  delete p.connectedIp;
+  const r = reconcileHunts(p, [server], t);
+  assert.equal(r.opened.length, 1);
+  assert.equal(r.opened[0].kind, 'fine');
+  assert.equal(p.pendingHunts.length, 1);
+
+  // Not due yet, then due.
+  assert.equal(reconcileHunts(p, [server], t + 60_000).due.length, 0);
+  assert.equal(reconcileHunts(p, [server], t + 7 * 60_000).due.length, 1);
+  assert.equal(p.pendingHunts.length, 0);
+
+  // Wiping the logs before the deadline cancels it.
+  reconcileHunts(p, [server], t);
+  server.logs = [];
+  const c = reconcileHunts(p, [server], t + 1000);
+  assert.equal(c.cancelled.length, 1);
+  assert.equal(p.pendingHunts.length, 0);
+});
+
+test('hunts: logs older than the feature or showing a proxy IP do not count', async () => {
+  const { reconcileHunts, HUNT_FEATURE_START } = await import('./engine/HuntEngine.js');
+  const server: any = { ip: '9.9.9.9', hostname: 'corp', type: 'bank', logs: [
+    { id: 'old', timestamp: HUNT_FEATURE_START - 1, ip: '1.1.1.1', action: '', formattedTime: '' },
+    { id: 'proxy', timestamp: HUNT_FEATURE_START + 5, ip: '5.5.5.5', action: 'via proxy', formattedTime: '' },
+  ] };
+  const p = makePlayer();
+  p.ip = '1.1.1.1';
+  p.hackedIps = ['9.9.9.9'];
+  assert.equal(reconcileHunts(p, [server], HUNT_FEATURE_START + 10).opened.length, 0);
+});
+
+test('trace heat: noisy actions cost more seconds', async () => {
+  const { traceHeatSeconds } = await import('./engine/traceHeat.js');
+  assert.ok(traceHeatSeconds('mass_bank_heist') > traceHeatSeconds('crack'));
+  assert.ok(traceHeatSeconds('download', 500) > traceHeatSeconds('download', 5));
+  assert.equal(traceHeatSeconds('download', 5000), 20);
+});

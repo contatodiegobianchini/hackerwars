@@ -18,9 +18,12 @@ import {
   DarkChatChannel,
   DarkChatMessage,
   FactionType,
-  AdminUserData
+  AdminUserData,
+  PendingHunt,
 } from '../types/game.js';
 import { MissionEngine } from './MissionEngine.js';
+import { HUNT_KIND_TEXT, reconcileHunts } from './HuntEngine.js';
+import { traceHeatSeconds } from './traceHeat.js';
 import { CryptoEngine } from './CryptoEngine.js';
 import { BlackMarketEngine } from './BlackMarketEngine.js';
 import { DefenseEngine } from './DefenseEngine.js';
@@ -85,6 +88,7 @@ export class GameWorld {
       this.startNpcSecurityTicker();
       this.startVpsAndInvasionTicker();
       this.startSpywareSnifferTicker();
+      this.startHuntTicker();
     }
   }
 
@@ -593,11 +597,103 @@ export class GameWorld {
       }
     ) || undefined;
 
+    player.connectedIp = server.ip;
+    this.savePlayerState(userId);
     return { success: true, server, traceState };
+  }
+
+  /** IP that a server's logs record: the last proxy hop when the player routes through proxies. */
+  public traceableIp(player: Player): string {
+    const chain = player.activeProxyChain || [];
+    return chain.length > 0 ? chain[chain.length - 1] : player.ip;
   }
 
   public disconnectServer(userId: string) {
     this.proxyTraceEngine.stopTrace(userId);
+    const player = this.players.get(userId)?.player;
+    if (player?.connectedIp) {
+      delete player.connectedIp;
+      this.savePlayerState(userId);
+      this.runHuntsFor(userId, player);
+    }
+  }
+
+  // --- Consequências por deixar rastros (HuntEngine) ---
+
+  private emitTo(userId: string, event: string, payload: unknown) {
+    const io = (this.proxyTraceEngine as any)['io'];
+    io?.to(userId).emit(event, payload);
+  }
+
+  private isOnline(userId: string): boolean {
+    const io = (this.proxyTraceEngine as any)['io'];
+    return (io?.sockets?.adapter?.rooms?.get(userId)?.size || 0) > 0;
+  }
+
+  private startHuntTicker() {
+    const timer = setInterval(() => {
+      for (const { userId, player } of this.players.values()) {
+        try { this.runHuntsFor(userId, player); } catch (e) { console.error('[hunt]', e); }
+      }
+    }, 10_000);
+    timer.unref?.();
+  }
+
+  public runHuntsFor(userId: string, player: Player) {
+    const { due, opened, cancelled } = reconcileHunts(player, this.servers.values());
+    if (!due.length && !opened.length && !cancelled.length) return;
+
+    for (const hunt of opened) {
+      const minutes = Math.round((hunt.dueAt - hunt.createdAt) / 60_000);
+      this.emitTo(userId, 'hunt_notice', {
+        tone: 'warning',
+        title: 'Você deixou rastros',
+        message: `Seu IP ficou nos logs de ${hunt.hostname}. Em ${minutes} min ${HUNT_KIND_TEXT[hunt.kind]}. Volte e apague os logs para evitar.`,
+      });
+    }
+    for (const hunt of cancelled) {
+      this.emitTo(userId, 'hunt_notice', { tone: 'success', title: 'Rastros apagados', message: `Ninguém vai atrás de você por ${hunt.hostname}.` });
+    }
+    for (const hunt of due) this.resolveHunt(userId, player, hunt);
+
+    this.savePlayerState(userId);
+    this.emitTo(userId, 'player_update', { player });
+  }
+
+  private resolveHunt(userId: string, player: Player, hunt: PendingHunt) {
+    const online = this.isOnline(userId);
+    const loseRoot = () => { player.hackedIps = player.hackedIps.filter(ip => ip !== hunt.ip); };
+    const fine = (pct: number, min: number) => {
+      const value = Math.min(player.cash, Math.max(min, Math.round(player.cash * pct)));
+      player.cash -= value;
+      if (player.bankAccounts?.[0]) player.bankAccounts[0].balance = player.cash;
+      return value;
+    };
+    let message = '';
+
+    if (hunt.kind === 'reset') {
+      loseRoot();
+      message = `O administrador de ${hunt.hostname} achou seus rastros e trocou a senha. Você perdeu o acesso root.`;
+      this.addNews(`Administrador de ${hunt.hostname} detecta invasão e troca todas as senhas.`, 'BREACH');
+    } else if (hunt.kind === 'fine' || !online) {
+      const value = fine(hunt.kind === 'fine' ? 0.1 : 0.15, 500);
+      loseRoot();
+      message = `A segurança de ${hunt.hostname} identificou você pelos logs: multa de US$ ${value.toLocaleString('pt-BR')} e perda do acesso root.`;
+      this.addNews(`${hunt.hostname} identifica o hacker ${player.username} pelos logs de acesso e aplica multa.`, 'POLICE');
+    } else if (hunt.kind === 'raid') {
+      this.contractsAndRaidEngine.triggerPoliceRaid(player, 'FBI Cyber Division', `Rastros deixados nos logs de ${hunt.hostname} (${hunt.ip}) levaram os agentes até você.`);
+      message = `A polícia federal seguiu seus rastros em ${hunt.hostname}. Defenda-se da batida!`;
+      this.addNews(`Polícia federal rastreia invasor de ${hunt.hostname} a partir dos logs de acesso.`, 'POLICE');
+    } else {
+      player.lockdownUntil = Date.now() + 5 * 60_000;
+      this.emitTo(userId, 'cartel_jumpscare_event', {
+        player, lockdownUntil: player.lockdownUntil, lockdownDurationSec: 300,
+        message: `O cartel seguiu seus rastros em ${hunt.hostname} e mandou sicários até seu esconderijo!`,
+      });
+      message = `O cartel seguiu seus rastros em ${hunt.hostname}.`;
+      this.addNews(`RETALIAÇÃO DO CARTEL: ${player.username} deixou rastros em ${hunt.hostname} e foi localizado.`, 'BREACH');
+    }
+    this.emitTo(userId, 'hunt_notice', { tone: 'danger', title: 'Te acharam', message });
   }
 
   public portScan(userId: string, targetIp: string): { success: boolean; server?: VirtualServer; message?: string } {
@@ -610,8 +706,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `PORT SCAN detectado a partir de ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `PORT SCAN detectado a partir de ${this.traceableIp(player)}`,
     });
 
     dbHelpers.saveServer(server);
@@ -634,8 +730,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `ACESSO ROOT CONCEDIDO via exploit por ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `ACESSO ROOT CONCEDIDO via exploit por ${this.traceableIp(player)}`,
     });
 
     this.savePlayerState(userId);
@@ -675,8 +771,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `Download de arquivo: ${file.name} (${file.sizeMb}MB) por ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `Download de arquivo: ${file.name} (${file.sizeMb}MB) por ${this.traceableIp(player)}`,
     });
 
     this.savePlayerState(userId);
@@ -718,8 +814,8 @@ export class GameWorld {
         id: `log-${uuidv4().substring(0, 8)}`,
         timestamp: Date.now(),
         formattedTime: new Date().toLocaleTimeString(),
-        ip: player.ip,
-        action: `PROCESSO DAEMON INJETADO: CryptoMinerX v${soft.version} iniciado em background por ${player.ip}`,
+        ip: this.traceableIp(player),
+        action: `PROCESSO DAEMON INJETADO: CryptoMinerX v${soft.version} iniciado em background por ${this.traceableIp(player)}`,
       });
 
       this.savePlayerState(userId);
@@ -742,8 +838,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `Upload de arquivo: ${soft.name} (v${soft.version}) por ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `Upload de arquivo: ${soft.name} (v${soft.version}) por ${this.traceableIp(player)}`,
     });
 
     this.savePlayerState(userId);
@@ -786,8 +882,8 @@ export class GameWorld {
         id: `log-${uuidv4().substring(0, 8)}`,
         timestamp: Date.now(),
         formattedTime: new Date().toLocaleTimeString(),
-        ip: player.ip,
-        action: `ATAQUE DDOS BLOQUEADO: Defesas de firewall absorveram o ataque originado de ${player.ip}`,
+        ip: this.traceableIp(player),
+        action: `ATAQUE DDOS BLOQUEADO: Defesas de firewall absorveram o ataque originado de ${this.traceableIp(player)}`,
       });
       dbHelpers.saveServer(server);
       return {
@@ -804,8 +900,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `ALERTA CRÍTICO: ATAQUE DDOS BEM-SUCEDIDO! Servidor sobrecarregado e offline a partir de ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `ALERTA CRÍTICO: ATAQUE DDOS BEM-SUCEDIDO! Servidor sobrecarregado e offline a partir de ${this.traceableIp(player)}`,
     });
 
     player.reputation += 120;
@@ -890,8 +986,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `Arquivo removido: ${deleted.name} por ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `Arquivo removido: ${deleted.name} por ${this.traceableIp(player)}`,
     });
 
     dbHelpers.saveServer(server);
@@ -917,8 +1013,10 @@ export class GameWorld {
     }
     const result = this.wipeRemoteLogs(server.ip);
     if (result.success) {
+      this.proxyTraceEngine.addHeat(userId, server.ip, traceHeatSeconds('wipelog'), 'limpeza de logs');
       this.missionEngine.recordOperation(player, 'wipe_logs', server.ip);
       this.savePlayerState(userId);
+      this.runHuntsFor(userId, player);
     }
     return result;
   }
@@ -1044,7 +1142,7 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
+      ip: this.traceableIp(player),
       action: `TRANSFERÊNCIA BANCÁRIA: $${amount} de ${sourceAccNum} para ${destAccNum}`,
     });
 

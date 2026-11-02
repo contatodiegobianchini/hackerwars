@@ -4,6 +4,7 @@ import { useBankActions } from '../../hooks/useBankActions.js';
 import { AlertTriangle, Crosshair, Flame, Trash2 } from 'lucide-react';
 import type { GameProcess, ProcessType, SoftwareItem } from '../../types/game.js';
 import { SERVER_TYPE_LABELS, secondsLeft, versionLabel } from '../../game/labels.js';
+import { HUNT_KIND_BY_TYPE, HUNT_KIND_TEXT, HUNT_MINUTES, formatCountdown, traceHeatSeconds } from '../../game/traceHeat.js';
 import { CyberProgress } from '../ui/CyberProgress.js';
 
 const money = (v: number) => `US$ ${Math.round(v).toLocaleString('pt-BR')}`;
@@ -11,8 +12,10 @@ const money = (v: number) => `US$ ${Math.round(v).toLocaleString('pt-BR')}`;
 /** Target screen: one operation in three real steps (breach → exploit → vanish). */
 export const TargetServerView: React.FC = () => {
   const {
-    player, activeConnection, processes, storyChapters, startProcess, deleteRemoteFile, wipeRemoteLogs, setCurrentView,
+    player, activeConnection, activeTrace, processes, storyChapters, startProcess, deleteRemoteFile, wipeRemoteLogs, setCurrentView,
   } = useGameStore();
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const { handleMassBankHeist, handleBankHeist, handleSiphonAccount, handleSiphonCrypto } = useBankActions();
   const [showLogs, setShowLogs] = useState(false);
   const [glitch, setGlitch] = useState(false);
@@ -81,6 +84,11 @@ export const TargetServerView: React.FC = () => {
   const targetDefense = Math.round(server.security.firewallLevel * server.hardware.networkMbps * 4);
   const ddosChance = Math.min(95, Math.max(5, Math.round((playerPower / (playerPower + targetDefense * 0.7)) * 100)));
 
+  // While the police trace runs on this target, every action shows what it costs.
+  const tracingHere = !!activeTrace?.isActive && activeTrace.targetIp === server.ip;
+  const cost = (type: ProcessType, sizeMb = 0) => (tracingHere ? ` · −${traceHeatSeconds(type, sizeMb)} s` : '');
+  const hunt = player.pendingHunts?.find(h => h.ip === server.ip);
+
   const download = (file: SoftwareItem) => startProcess('download', { targetIp: server.ip, targetFileId: file.id, targetFileName: file.name });
   const progressRow = (p: GameProcess, label: string) => (
     <CyberProgress value={Math.round(p.progress)} label={label} valueLabel={`${secondsLeft(p)} s`} />
@@ -131,12 +139,12 @@ export const TargetServerView: React.FC = () => {
               {runningOf('crack') ? progressRow(runningOf('crack')!, 'Quebrando senha') : (
                 <div className="flex flex-wrap gap-2">
                   {canCrack ? (
-                    <button className="cyber-button" onClick={() => startProcess('crack', { targetIp: server.ip })}>Quebrar senha</button>
+                    <button className="cyber-button" onClick={() => startProcess('crack', { targetIp: server.ip })}>Quebrar senha{cost('crack')}</button>
                   ) : (
                     <button className="cyber-button" onClick={() => setCurrentView('software')}>Evoluir cracker</button>
                   )}
                   <button className="cyber-button cyber-button--secondary" onClick={() => startProcess('scan', { targetIp: server.ip })} disabled={!!runningOf('scan')}>
-                    {runningOf('scan') ? 'Varrendo portas…' : 'Varrer portas'}
+                    {runningOf('scan') ? 'Varrendo portas…' : `Varrer portas${cost('scan')}`}
                   </button>
                 </div>
               )}
@@ -169,7 +177,7 @@ export const TargetServerView: React.FC = () => {
                         </div>
                         {owned ? <span className="text-sm text-emerald-500">Já baixado</span> : (
                           <button className="cyber-button hw-mini" onClick={() => download(file)} disabled={file.sizeMb > freeMb} title={file.sizeMb > freeMb ? 'Disco cheio' : undefined}>
-                            {file.sizeMb > freeMb ? 'Disco cheio' : 'Baixar'}
+                            {file.sizeMb > freeMb ? 'Disco cheio' : `Baixar${cost('download', file.sizeMb)}`}
                           </button>
                         )}
                         {!isGoal && (
@@ -193,7 +201,7 @@ export const TargetServerView: React.FC = () => {
                     </div>
                     {spyware ? (
                       <button className="cyber-button hw-mini cyber-button--secondary" onClick={() => startProcess('plant_spyware', { targetIp: server.ip, targetFileName: spyware.name })}>
-                        {mySpyware ? 'Atualizar' : 'Implantar'}
+                        {mySpyware ? 'Atualizar' : 'Implantar'}{cost('plant_spyware')}
                       </button>
                     ) : <button className="hw-link" onClick={() => setCurrentView('black_market')}>Procurar no Black Market</button>}
                   </>
@@ -228,7 +236,7 @@ export const TargetServerView: React.FC = () => {
                     {miner && (
                       <button className="cyber-button hw-mini cyber-button--secondary"
                         onClick={() => startProcess('upload', { targetIp: server.ip, softwareId: miner.id, targetFileName: miner.name, details: { softwareId: miner.id } })}>
-                        {myMiner ? 'Atualizar' : 'Instalar'}
+                        {myMiner ? 'Atualizar' : 'Instalar'}{cost('upload')}
                       </button>
                     )}
                   </>
@@ -245,7 +253,7 @@ export const TargetServerView: React.FC = () => {
                           <p className="hw-row__title">Mega-assalto à database central</p>
                           <p className="hw-row__sub">Leva o cofre inteiro, mas a polícia federal emite um mandado na hora.</p>
                         </div>
-                        <button className="cyber-button cyber-button--danger hw-mini" onClick={handleMassBankHeist}>Executar</button>
+                        <button className="cyber-button cyber-button--danger hw-mini" onClick={handleMassBankHeist}>Executar{cost('mass_bank_heist')}</button>
                       </>
                     )}
                   </div>
@@ -278,7 +286,7 @@ export const TargetServerView: React.FC = () => {
           <div className="hw-stage__body">
             <div className="flex flex-wrap items-center gap-2">
               {isBreached && myLogs.length > 0 && (
-                <button className="cyber-button" onClick={() => wipeRemoteLogs(server.ip)}>Apagar logs</button>
+                <button className="cyber-button" onClick={() => wipeRemoteLogs(server.ip)}>Apagar logs{cost('wipelog')}</button>
               )}
               {(server.logs || []).length > 0 && (
                 <button className="hw-link px-2" onClick={() => setShowLogs(v => !v)} aria-expanded={showLogs}>
@@ -287,6 +295,13 @@ export const TargetServerView: React.FC = () => {
               )}
             </div>
             {!isBreached && myLogs.length > 0 && <p className="text-sm text-gray-500">Para apagar os logs você precisa de acesso root.</p>}
+            {isBreached && myLogs.length > 0 && (
+              <p className="hw-row hw-row--alert text-sm text-gray-900">
+                {hunt
+                  ? <>Prazo: <strong className="font-mono text-red-500">{formatCountdown(hunt.dueAt - now)}</strong> para apagar antes que {HUNT_KIND_TEXT[hunt.kind]}.</>
+                  : <>Se sair sem apagar, em {HUNT_MINUTES[server.type]} min {HUNT_KIND_TEXT[HUNT_KIND_BY_TYPE[server.type]]}. Usar proxies esconde o seu IP dos logs.</>}
+              </p>
+            )}
             {showLogs && (
               <ul className="grid gap-1.5">
                 {server.logs.map(log => {
@@ -319,7 +334,7 @@ export const TargetServerView: React.FC = () => {
           {runningOf('ddos') ? <div className="w-full">{progressRow(runningOf('ddos')!, 'Ataque DDoS')}</div> : (
             <button className="cyber-button cyber-button--danger" disabled={!isOnline}
               onClick={() => startProcess('ddos', { targetIp: server.ip, targetFileName: `DDoS em ${server.hostname}` })}>
-              {isOnline ? 'Lançar ataque' : 'Já está fora do ar'}
+              {isOnline ? `Lançar ataque${cost('ddos')}` : 'Já está fora do ar'}
             </button>
           )}
         </div>
