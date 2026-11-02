@@ -7,20 +7,12 @@ import { CyberPanel } from '../ui/CyberPanel.js';
 import { CyberProgress } from '../ui/CyberProgress.js';
 
 export const CampaignView: React.FC = () => {
-  const { player, storyChapters, servers, allServers, submitStoryChoice, connectToTarget, setCurrentView } = useGameStore();
+  const { player, storyChapters, submitStoryChoice, connectToTarget, setCurrentView } = useGameStore();
   const [selectedChapterId, setSelectedChapterId] = useState('chap-1');
   if (!player) return null;
   const chapter = storyChapters.find(item => item.id === selectedChapterId) || storyChapters[0];
-  const objectiveComplete = (objective: StoryObjective) => {
-    if (objective.completed) return true;
-    const server = allServers.find(item => item.ip === objective.targetIp) || servers.find(item => item.ip === objective.targetIp);
-    const breached = player.hackedIps.includes(objective.targetIp) || !!server?.security?.isBreached;
-    if (objective.type === 'download') return !objective.targetFileName ? breached : player.software.some(item => item.name.toLowerCase().includes(objective.targetFileName!.toLowerCase()));
-    if (objective.type === 'spyware') return !!server?.activeSpyware?.some(item => item.ownerId === player.id);
-    if (objective.type === 'wipe_logs') return breached && !server?.logs?.some(log => log.ip === player.ip || log.action.includes(player.username));
-    if (objective.type === 'ddos') return server?.isOnline === false;
-    return breached;
-  };
+  // Objective state is computed by the server (per-player, authoritative).
+  const objectiveComplete = (objective: StoryObjective) => !!objective.completed;
   const completed = chapter?.objectives.filter(objectiveComplete).length || 0;
   const allComplete = !!chapter && completed === chapter.objectives.length;
 

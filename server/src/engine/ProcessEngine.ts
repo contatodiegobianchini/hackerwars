@@ -1,5 +1,6 @@
 import { GameProcess, ProcessType, VirtualServer, SoftwareItem } from '../types/game.js';
 import { GameWorld } from './GameWorld.js';
+import type { MissionOperation } from './MissionEngine.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -75,7 +76,7 @@ export class ProcessEngine {
     if (type === 'plant_spyware' && params.targetIp) {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
-      if (!target.security.isBreached) return { success: false, message: 'Você precisa obter acesso ROOT (Crack) antes de implantar o Spyware!' };
+      if (!player.hackedIps.includes(target.ip)) return { success: false, message: 'Você precisa obter acesso ROOT (Crack) antes de implantar o Spyware!' };
       const spyware = player.software.find(s => s.type === 'spyware');
       if (!spyware) return { success: false, message: 'Você não possui nenhum software Spyware instalado!' };
     }
@@ -84,16 +85,22 @@ export class ProcessEngine {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
       if (target.type !== 'bank') return { success: false, message: 'Este servidor não é uma instituição financeira bancária!' };
-      if (!target.security.isBreached) return { success: false, message: 'Você precisa obter acesso ROOT no servidor bancário antes de infiltrar a database central!' };
+      if (!player.hackedIps.includes(target.ip)) return { success: false, message: 'Você precisa obter acesso ROOT no servidor bancário antes de infiltrar a database central!' };
     }
 
     if (type === 'download' && params.targetIp) {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
-      if (!target.security.isBreached) return { success: false, message: 'Acesso negado: quebre a senha do servidor antes de baixar arquivos.' };
+      if (!player.hackedIps.includes(target.ip)) return { success: false, message: 'Acesso negado: quebre a senha do servidor antes de baixar arquivos.' };
       if (params.targetFileId && !target.files.some(f => f.id === params.targetFileId)) {
         return { success: false, message: 'Arquivo alvo não encontrado no servidor.' };
       }
+    }
+
+    if ((type === 'wipelog' || type === 'editlog') && params.targetIp) {
+      const target = this.gameWorld.getServer(params.targetIp);
+      if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
+      if (!player.hackedIps.includes(target.ip)) return { success: false, message: 'Acesso negado: é preciso acesso ROOT (Crack) para manipular os logs deste servidor.' };
     }
 
     if (type === 'compile' && params.softwareId) {
@@ -252,11 +259,13 @@ export class ProcessEngine {
   private handleProcessCompletion(proc: GameProcess) {
     let resultMessage = '';
     const userId = proc.playerId;
+    let completedOp: { op: MissionOperation; fileName?: string } | null = null;
 
     switch (proc.type) {
       case 'crack':
         if (proc.targetIp) {
           const ok = this.gameWorld.onPasswordCracked(userId, proc.targetIp);
+          if (ok) completedOp = { op: 'crack' };
           resultMessage = ok
             ? `Acesso ROOT obtido com sucesso em ${proc.targetIp}!`
             : `Falha ao conceder acesso ROOT em ${proc.targetIp}. O servidor não está mais disponível.`;
@@ -271,6 +280,7 @@ export class ProcessEngine {
       case 'download':
         if (proc.targetIp && proc.targetFileId) {
           const res = this.gameWorld.downloadFile(userId, proc.targetIp, proc.targetFileId);
+          if (res.success) completedOp = { op: 'download', fileName: res.file?.name };
           resultMessage = res.success ? `Download concluído: ${res.file?.name}` : (res.message || 'Falha no download');
         }
         break;
@@ -294,13 +304,15 @@ export class ProcessEngine {
         break;
       case 'wipelog':
         if (proc.targetIp) {
-          this.gameWorld.wipeRemoteLogs(proc.targetIp);
+          const res = this.gameWorld.wipeRemoteLogs(proc.targetIp);
+          if (res.success) completedOp = { op: 'wipe_logs' };
           resultMessage = `Todos os logs em ${proc.targetIp} foram apagados.`;
         }
         break;
       case 'ddos':
         if (proc.targetIp) {
           const res = this.gameWorld.ddosAttack(userId, proc.targetIp);
+          if (res.success) completedOp = { op: 'ddos' };
           resultMessage = res.message;
         }
         break;
@@ -314,18 +326,31 @@ export class ProcessEngine {
       case 'plant_spyware':
         if (proc.targetIp) {
           const res = this.gameWorld.plantSpyware(userId, proc.targetIp);
+          if (res.success) completedOp = { op: 'spyware' };
           resultMessage = res.message;
         }
         break;
       case 'mass_bank_heist':
         if (proc.targetIp) {
           const res = this.gameWorld.executeMassBankHeist(userId, proc.targetIp);
+          if (res.success) completedOp = { op: 'bank_heist' };
           resultMessage = res.message;
         }
         break;
     }
 
     const player = this.gameWorld.getPlayer(userId);
+
+    // Record the operation only when it actually succeeded, so missions and the
+    // story campaign reflect what this player did (not shared server state).
+    if (completedOp && proc.targetIp) {
+      this.gameWorld.missionEngine.recordOperation(player, completedOp.op, proc.targetIp, completedOp.fileName);
+      this.gameWorld.savePlayerState(userId);
+      if (this.io) {
+        this.io.to(userId).emit('story_chapters_update', { storyChapters: this.gameWorld.getStoryChapters(userId), player: this.gameWorld.getPlayer(userId) });
+      }
+    }
+
     const targetServer = proc.targetIp ? this.gameWorld.getServer(proc.targetIp) : undefined;
     const targetHostname = targetServer ? targetServer.hostname : (proc.targetIp || 'Servidor Remoto');
 

@@ -334,6 +334,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     socket.on('mission_accepted', (res) => { if (res.success) set({ player: res.player, missions: res.missions }); else get().addToast('Missão', res.message || 'Não foi possível aceitar a missão', 'warning'); });
     socket.on('mission_claimed', (res) => { if (res.success) { set({ player: res.player, missions: res.missions }); get().addToast('Missão Concluída!', res.message, 'success'); sounds.cash(); confetti({ particleCount: 80, spread: 70 }); } else get().addToast('Objetivo Incompleto', res.message, 'warning'); });
     socket.on('faction_alignment_result', (res) => { if (res.player) set({ player: res.player }); if (res.darkChatChannels) set({ darkChatChannels: res.darkChatChannels }); get().addToast('Facção Atualizada!', res.message, res.success ? 'success' : 'danger'); });
+    socket.on('story_chapters_update', (res) => { if (res.storyChapters) set({ storyChapters: res.storyChapters }); if (res.player) set({ player: res.player }); });
     socket.on('story_choice_result', (res) => { if (res.player) set({ player: res.player }); if (res.storyChapters) set({ storyChapters: res.storyChapters }); if (res.darkChatChannels) set({ darkChatChannels: res.darkChatChannels }); get().addToast('Modo História', res.message, res.success ? 'success' : 'danger'); });
     socket.on('disconnect', () => { /* Socket.IO reconnects automatically. */ });
     set({ socket });

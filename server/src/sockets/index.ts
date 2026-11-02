@@ -39,7 +39,7 @@ export function setupSocketListeners(
         player: gameWorld.getPlayer(userId),
         servers: gameWorld.getDiscoveredServers(userId),
         allServers: gameWorld.getAllServers(),
-        missions: gameWorld.missionEngine.getAvailableMissions(),
+        missions: gameWorld.missionEngine.getPlayerMissions(gameWorld.getPlayer(userId)),
         cryptoState: gameWorld.cryptoEngine.getState(),
         crates: gameWorld.blackMarketEngine.getCrates(),
         clans: gameWorld.clanEngine.getClans(),

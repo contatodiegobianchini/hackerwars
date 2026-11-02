@@ -849,13 +849,33 @@ export class GameWorld {
     };
   }
 
+  private isQuestFile(targetIp: string, fileName: string): boolean {
+    const name = (fileName || '').toLowerCase();
+    if (!name) return false;
+    const inMissions = this.missionEngine.getAvailableMissions()
+      .some(m => m.targetIp === targetIp && m.requiredFileName?.toLowerCase() === name);
+    if (inMissions) return true;
+    return this.storyEngine.getChapters()
+      .some(c => c.objectives.some(o => o.targetIp === targetIp && o.targetFileName?.toLowerCase() === name));
+  }
+
   public deleteRemoteFile(userId: string, targetIp: string, fileId: string): { success: boolean; message?: string } {
     const player = this.getOrCreatePlayer(userId);
     const server = this.servers.get(targetIp);
     if (!server) return { success: false, message: 'Servidor não encontrado' };
 
+    if (!player.hackedIps.includes(server.ip)) {
+      return { success: false, message: 'Acesso negado: é preciso acesso ROOT (Crack) para apagar arquivos deste servidor.' };
+    }
+
     const index = server.files.findIndex(f => f.id === fileId);
     if (index === -1) return { success: false, message: 'Arquivo não encontrado' };
+
+    // Servers are shared by every player: deleting a contract/campaign file would
+    // make that objective impossible for everyone else.
+    if (this.isQuestFile(server.ip, server.files[index].name)) {
+      return { success: false, message: 'Este arquivo é alvo de um contrato ativo na rede e está protegido contra exclusão.' };
+    }
 
     const [deleted] = server.files.splice(index, 1);
     if (!server.logs) server.logs = [];
@@ -878,6 +898,33 @@ export class GameWorld {
     server.logs = [];
     dbHelpers.saveServer(server);
     return { success: true, message: 'Todos os logs do servidor remoto foram apagados.' };
+  }
+
+  /** Player-initiated log wipe: requires ROOT on the target and counts for missions. */
+  public wipeRemoteLogsAsPlayer(userId: string, targetIp: string): { success: boolean; message?: string } {
+    const player = this.getOrCreatePlayer(userId);
+    const server = this.servers.get(targetIp);
+    if (!server) return { success: false, message: 'Servidor não encontrado' };
+    if (!player.hackedIps.includes(server.ip)) {
+      return { success: false, message: 'Acesso negado: é preciso acesso ROOT (Crack) para apagar os logs deste servidor.' };
+    }
+    const result = this.wipeRemoteLogs(server.ip);
+    if (result.success) {
+      this.missionEngine.recordOperation(player, 'wipe_logs', server.ip);
+      this.savePlayerState(userId);
+    }
+    return result;
+  }
+
+  /** Player-initiated log edit: requires ROOT on the target. */
+  public editLogAsPlayer(userId: string, targetIp: string, logId: string, newContent: string): { success: boolean; message?: string } {
+    const player = this.getOrCreatePlayer(userId);
+    const server = this.servers.get(targetIp);
+    if (!server) return { success: false, message: 'Servidor não encontrado' };
+    if (!player.hackedIps.includes(server.ip)) {
+      return { success: false, message: 'Acesso negado: é preciso acesso ROOT (Crack) para editar os logs deste servidor.' };
+    }
+    return this.editLogEntry(server.ip, logId, String(newContent ?? '').slice(0, 500));
   }
 
   public editLogEntry(targetIp: string, logId: string, newContent: string): { success: boolean; message?: string } {
@@ -1375,9 +1422,8 @@ export class GameWorld {
     const server = this.servers.get(targetIp);
     if (!server) return { success: false, message: 'Servidor alvo não encontrado.' };
     if (server.type !== 'bank') return { success: false, message: 'Este alvo não é uma instituição financeira bancária!' };
-    if (!server.security.isBreached) return { success: false, message: 'Acesso ROOT necessário antes de executar o Mega-Assalto!' };
-
     const player = this.getOrCreatePlayer(userId);
+    if (!player.hackedIps.includes(server.ip)) return { success: false, message: 'Acesso ROOT necessário antes de executar o Mega-Assalto!' };
 
     // Calculate massive stolen funds based on bank level
     let bankLoot = Math.round(server.security.hasherLevel * 18000 + 45000 + Math.random() * 25000);
@@ -1577,6 +1623,13 @@ export class GameWorld {
 
   public setFactionAlignment(userId: string, faction: FactionType): { success: boolean; player: Player; message: string } {
     const player = this.getOrCreatePlayer(userId);
+    const validFactions: FactionType[] = ['anonymous', 'russian_bears', 'cartel', 'lone_wolf'];
+    if (!validFactions.includes(faction)) {
+      return { success: false, player, message: 'Facção inválida.' };
+    }
+    if (player.activeFactionAlignment === faction) {
+      return { success: false, player, message: 'Você já está alinhado com esta facção.' };
+    }
     player.activeFactionAlignment = faction;
     this.savePlayerState(userId);
     return {

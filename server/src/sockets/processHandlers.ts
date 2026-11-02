@@ -31,7 +31,7 @@ export function registerProcessHandlers(
     socket.emit('mission_accepted', {
       ...result,
       player: gameWorld.getPlayer(currentUserId),
-      missions: gameWorld.missionEngine.getPlayerMissions(currentUserId),
+      missions: gameWorld.missionEngine.getPlayerMissions(gameWorld.getPlayer(currentUserId)),
     });
   });
 
@@ -41,7 +41,7 @@ export function registerProcessHandlers(
     socket.emit('mission_claimed', {
       ...result,
       player: gameWorld.getPlayer(currentUserId),
-      missions: gameWorld.missionEngine.getPlayerMissions(currentUserId),
+      missions: gameWorld.missionEngine.getPlayerMissions(gameWorld.getPlayer(currentUserId)),
     });
   });
 }
