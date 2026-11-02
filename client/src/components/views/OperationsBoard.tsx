@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronDown, Circle, LockKeyhole } from 'lucide-react';
 import { useGameStore } from '../../stores/useGameStore.js';
 import { buildOperations, type Operation, type OperationKind, type OperationState } from '../../game/operations.js';
@@ -11,6 +11,11 @@ const money = (v: number) => `US$ ${Math.round(v).toLocaleString('pt-BR')}`;
 
 type KindFilter = 'all' | OperationKind;
 
+const expiresIn = (ms: number) => {
+  const min = Math.max(1, Math.round(ms / 60_000));
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+};
+
 /** Single board for story chapters, contracts and Syndicate jobs. */
 export const OperationsBoard: React.FC = () => {
   const {
@@ -20,10 +25,12 @@ export const OperationsBoard: React.FC = () => {
   const [kind, setKind] = useState<KindFilter>('all');
   const [showDone, setShowDone] = useState(false);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
 
   const operations = useMemo(
-    () => (player ? buildOperations({ player, storyChapters, missions, contracts, servers: allServers }) : []),
-    [player, storyChapters, missions, contracts, allServers],
+    () => (player ? buildOperations({ player, storyChapters, missions, contracts, servers: allServers }, now) : []),
+    [player, storyChapters, missions, contracts, allServers, now],
   );
   if (!player) return null;
 
@@ -94,11 +101,12 @@ export const OperationsBoard: React.FC = () => {
           return (
             <li key={op.key} className={`hw-op hw-op--${op.state}`}>
               <button className="hw-op__row" onClick={() => setOpenKey(open ? null : op.key)} aria-expanded={open}>
-                <span className="hw-op__kind">{KIND_LABEL[op.kind]}</span>
+                <span className={`hw-op__kind ${op.isDaily ? 'hw-op__kind--daily' : ''}`}>{op.isDaily ? 'Golpe do dia' : KIND_LABEL[op.kind]}</span>
                 <span className="hw-op__main">
                   <span className="hw-op__title">{op.title}</span>
                   <span className="hw-op__sub">
                     {op.source}{op.targetIp && <> · <span className="font-mono">{op.targetIp}</span></>}
+                    {op.expiresAt && <> · expira em {expiresIn(op.expiresAt - now)}</>}
                   </span>
                 </span>
                 <span className="hw-op__status">
@@ -118,6 +126,20 @@ export const OperationsBoard: React.FC = () => {
                       </li>
                     ))}
                   </ul>
+                  {op.kind === 'contract' && (
+                    <div className="hw-op__style">
+                      <span className="hw-op__style-title">Estilo · cada estrela extra vale +25%</span>
+                      <span className={op.state === 'ready' ? 'on' : ''}>★ Concluir</span>
+                      <span className={op.style ? (op.style.notTraced ? 'on' : 'off') : ''}>★ Sem ser rastreado</span>
+                      <span className={op.style ? (op.style.clean ? 'on' : 'off') : ''}>★ Sem deixar rastros</span>
+                    </div>
+                  )}
+                  {op.isDaily && (
+                    <p className="hw-op__rewards">
+                      Recompensa triplicada. Concluir o golpe do dia em dias seguidos rende +10% por dia (até +50%).
+                      {player.dailyStreak && player.dailyStreak.count > 0 ? ` Sua sequência: ${player.dailyStreak.count} ${player.dailyStreak.count === 1 ? 'dia' : 'dias'}.` : ''}
+                    </p>
+                  )}
                   <p className="hw-op__rewards">
                     Recompensa{op.rewardIsMax ? ' (depende da escolha)' : ''}: {op.rewardIsMax ? 'até ' : ''}{money(op.rewardCash)}
                     {op.rewardBtc ? ` · ${op.rewardBtc} BTC` : ''} · {op.rewardRep} de reputação

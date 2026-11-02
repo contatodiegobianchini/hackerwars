@@ -211,6 +211,9 @@ export interface Mission {
   status: MissionStatus;
   timeLimitMs?: number;
   acceptedAt?: number;
+  expiresAt?: number;
+  isDaily?: boolean;
+  dayKey?: string;
 }
 
 export interface CryptoCoin {
@@ -427,6 +430,9 @@ export interface Player {
   completedContractIds?: string[];
   connectedIp?: string;
   pendingHunts?: PendingHunt[];
+  tracedIps?: Record<string, number>;
+  missionStars?: Record<string, number>;
+  dailyStreak?: { dayKey: string; count: number };
   operationLog?: Record<string, number>;
   discoveredIps: string[];
   hackedIps: string[];

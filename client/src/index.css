@@ -434,6 +434,12 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, te
   .hw-op__obj--done { color: var(--nevoa); }
   .hw-op__obj--done svg { color: var(--neon-ciano); }
   .hw-op__rewards { font-size: 13px; color: var(--nevoa); }
+  .hw-op__kind--daily { color: var(--neon-ciano) !important; }
+  .hw-op--available .hw-op__kind--daily, .hw-op--active .hw-op__kind--daily { text-shadow: 0 0 10px rgba(45, 226, 230, .45); }
+  .hw-op__style { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; color: var(--apagado); }
+  .hw-op__style-title { width: 100%; color: var(--nevoa); }
+  .hw-op__style .on { color: var(--fosforo); }
+  .hw-op__style .off { color: var(--sirene); text-decoration: line-through; }
 
   @media (max-width: 900px) {
     .hw-op__row { grid-template-columns: minmax(0, 1fr) auto 18px; padding: 12px 14px; }
