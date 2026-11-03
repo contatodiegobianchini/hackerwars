@@ -32,7 +32,8 @@ export const previousDayKey = (key: string) => dayKey(Date.parse(`${key}T03:00:0
 const EMPLOYERS = ['Guerrilha da Pizza', 'Anti-Pear Resistance', 'Meme Cartel', 'NullByte Syndicate', 'RedTeam Anonymous', 'Fãs Revoltados', 'Sindicato dos Estagiários', 'Tia do Zap Investigações'];
 
 export const difficultyFor = (hasher: number): MissionDifficulty => hasher < 3 ? 'Easy' : hasher < 15 ? 'Medium' : hasher < 30 ? 'Hard' : 'Elite';
-const MULTIPLIER: Record<MissionDifficulty, number> = { Easy: 1, Medium: 2.5, Hard: 5, Elite: 10, Legendary: 15 };
+/** Reward steps with the target's Hasher, so mid-level targets pay between easy and hard ones. */
+export const rewardMultiplier = (hasher: number) => hasher < 3 ? 1 : hasher < 8 ? 1.8 : hasher < 15 ? 3 : hasher < 30 ? 5 : 10;
 
 /** Builds one contract on a server. `rewardBoost` multiplies the base reward. */
 export function makeContract(server: VirtualServer, rng: Rng, opts: { id?: string; expiresAt?: number; rewardBoost?: number; isDaily?: boolean; dayKey?: string } = {}): Mission {
@@ -46,7 +47,7 @@ export function makeContract(server: VirtualServer, rng: Rng, opts: { id?: strin
 
   const hasher = server.security?.hasherLevel || 1;
   const difficulty = difficultyFor(hasher);
-  const mult = MULTIPLIER[difficulty] * (opts.rewardBoost || 1);
+  const mult = rewardMultiplier(hasher) * (opts.rewardBoost || 1);
   const host = server.hostname;
   const titles: Record<MissionType, string> = {
     steal_file: `Vazar ${choice.fileName} de ${host}`,
@@ -89,7 +90,8 @@ export function makeContract(server: VirtualServer, rng: Rng, opts: { id?: strin
 /** How many rotating contracts each difficulty tier keeps on the board. */
 export const BOARD_TIERS: Array<{ maxHasher: number; count: number }> = [
   { maxHasher: 3, count: 2 },
-  { maxHasher: 15, count: 2 },
+  { maxHasher: 8, count: 3 },
+  { maxHasher: 15, count: 3 },
   { maxHasher: 30, count: 1 },
   { maxHasher: Infinity, count: 1 },
 ];

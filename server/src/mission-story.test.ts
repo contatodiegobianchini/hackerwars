@@ -211,7 +211,7 @@ test('contract board: fills every tier, adds one daily, never uses honeypots, re
   assert.equal(daily.length, 1);
   assert.equal(daily[0].dayKey, dayKey(now));
   const generated = board.filter(m => !m.isDaily);
-  assert.equal(generated.length, 6);
+  assert.equal(generated.length, 7); // 2 easy + 3 mid (2 servers available, reused) + 1 hard + 1 elite
   assert.ok(generated.every(m => m.targetIp !== '10.0.0.7'));
   assert.ok(generated.some(m => m.difficulty === 'Easy'));
 
@@ -303,4 +303,42 @@ test('bestSoftware picks the highest version', async () => {
   const list: any[] = [{ type: 'cracker', version: 1 }, { type: 'cracker', version: 4 }, { type: 'miner', version: 9 }];
   assert.equal(bestSoftware(list, 'cracker')!.version, 4);
   assert.equal(bestSoftware(list, 'spyware'), undefined);
+});
+
+test('target catalog: many low and mid targets, unique IPs, scans follow the cracker', async () => {
+  const { buildCatalogServers, ensureTargets, scanBand, inBand, pickInBand, LOW_MID_TEMPLATES } = await import('./engine/targetCatalog.js');
+  const servers = buildCatalogServers();
+  assert.ok(servers.length >= 35);
+  assert.equal(new Set(servers.map(s => s.ip)).size, servers.length);
+  assert.equal(new Set(servers.map(s => s.id)).size, servers.length);
+  const hashers = servers.map(s => s.security.hasherLevel);
+  assert.ok(hashers.filter(h => h < 3).length >= 10, 'low targets');
+  assert.ok(hashers.filter(h => h >= 3 && h < 8).length >= 10, 'mid-low targets');
+  assert.ok(hashers.filter(h => h >= 8 && h <= 15).length >= 8, 'mid targets');
+  assert.deepEqual(buildCatalogServers().map(s => s.ip), servers.map(s => s.ip), 'deterministic');
+
+  const world = new Map<string, any>();
+  assert.equal(ensureTargets(world).length, servers.length);
+  assert.equal(ensureTargets(world).length, 0, 'idempotent');
+
+  // A beginner (cracker v1) mostly gets targets within reach.
+  let reachable = 0;
+  for (let i = 0; i < 200; i++) {
+    const band = scanBand(1, Math.random);
+    const { hasher } = pickInBand(LOW_MID_TEMPLATES, band);
+    if (hasher <= 1.5) reachable++;
+    assert.ok(hasher >= 0.5);
+    assert.ok(inBand(hasher, band) || hasher <= band.max + 0.1 || hasher >= band.min - 0.1);
+  }
+  assert.ok(reachable > 40, `beginner should often get easy targets, got ${reachable}/200`);
+});
+
+test('contract board: has mid-level contracts with rewards between easy and hard', async () => {
+  const { refreshBoard, rewardMultiplier } = await import('./engine/contractBoard.js');
+  const { buildCatalogServers } = await import('./engine/targetCatalog.js');
+  const board = refreshBoard([], buildCatalogServers() as any, Date.now());
+  const generated = board.filter(m => !m.isDaily);
+  const hasherOf = (ip: string) => buildCatalogServers().find(s => s.ip === ip)!.security.hasherLevel;
+  assert.ok(generated.filter(m => hasherOf(m.targetIp) >= 3 && hasherOf(m.targetIp) < 15).length >= 5);
+  assert.ok(rewardMultiplier(2) < rewardMultiplier(5) && rewardMultiplier(5) < rewardMultiplier(12) && rewardMultiplier(12) < rewardMultiplier(20));
 });
