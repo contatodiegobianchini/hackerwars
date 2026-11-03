@@ -136,6 +136,9 @@ export interface VirtualServer {
     rootPassword?: string;
     openPorts: PortInfo[];
   };
+  /** Patches stacked by the admins after many breaches (each adds +0.5 Hasher). */
+  patchLevel?: number;
+  baseHasher?: number;
   files: SoftwareItem[];
   bankAccounts?: BankAccount[];
   logs: LogEntry[];
@@ -437,6 +440,8 @@ export interface Player {
   pendingHunts?: PendingHunt[];
   tracedIps?: Record<string, number>;
   secretsFound?: string[];
+  /** Last time each root access was used (ms), for password rotation. */
+  accessAt?: Record<string, number>;
   missionStars?: Record<string, number>;
   dailyStreak?: { dayKey: string; count: number };
   operationLog?: Record<string, number>;

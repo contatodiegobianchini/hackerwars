@@ -342,3 +342,52 @@ test('contract board: has mid-level contracts with rewards between easy and hard
   assert.ok(generated.filter(m => hasherOf(m.targetIp) >= 3 && hasherOf(m.targetIp) < 15).length >= 5);
   assert.ok(rewardMultiplier(2) < rewardMultiplier(5) && rewardMultiplier(5) < rewardMultiplier(12) && rewardMultiplier(12) < rewardMultiplier(20));
 });
+
+test('world reaction: patches after a wave of breaches, relaxes later, spares quest servers', async () => {
+  const { recordBreach, reconcilePatch, PATCH_THRESHOLD, RELAX_AFTER_MS, maxPatchLevel } = await import('./engine/WorldReaction.js');
+  const mk = (): any => ({ ip: '1.2.3.4', type: 'corporate', security: { hasherLevel: 8, firewallLevel: 6 } });
+  const now = 1_000_000_000;
+  const server = mk();
+  for (let i = 0; i < PATCH_THRESHOLD - 1; i++) recordBreach(server, now + i);
+  assert.equal(reconcilePatch(server, now + 10), null, 'below the threshold');
+  recordBreach(server, now + 20);
+  assert.equal(reconcilePatch(server, now + 30, true), null, 'quest servers are exempt');
+  assert.equal(reconcilePatch(server, now + 40), 'patched');
+  assert.equal(server.security.hasherLevel, 8.5);
+  assert.equal(server.security.firewallLevel, 6.5);
+  assert.equal(server.patchLevel, 1);
+
+  // Never goes past the cap and relaxes after an hour with no breaches.
+  server.patchLevel = maxPatchLevel(8); server.baseHasher = 8;
+  for (let i = 0; i < PATCH_THRESHOLD; i++) recordBreach(server, now + 100 + i);
+  assert.equal(reconcilePatch(server, now + 200), null, 'capped');
+  server.patchLevel = 1; server.baseHasher = 8; server.security.hasherLevel = 8.5; server.breachTimes = []; server.lastBreachAt = now; server.patchedAt = now;
+  assert.equal(reconcilePatch(server, now + RELAX_AFTER_MS + 1), 'relaxed');
+  assert.equal(server.security.hasherLevel, 8);
+  assert.equal(server.baseHasher, undefined);
+  assert.equal(maxPatchLevel(0.8), 1);
+  assert.equal(maxPatchLevel(40), 6);
+});
+
+test('world reaction: idle root access is rotated, active and quest access is kept', async () => {
+  const { reconcileAccess, touchAccess, rotationMs } = await import('./engine/WorldReaction.js');
+  const servers = new Map<string, any>([
+    ['10.0.0.1', { ip: '10.0.0.1', type: 'personal' }],
+    ['10.0.0.2', { ip: '10.0.0.2', type: 'bank' }],
+    ['10.0.0.3', { ip: '10.0.0.3', type: 'bank' }],
+    ['10.0.0.4', { ip: '10.0.0.4', type: 'bank' }],
+  ]);
+  const player: any = { hackedIps: ['10.0.0.1', '10.0.0.2', '10.0.0.3', '10.0.0.4'], connectedIp: '10.0.0.3', accessAt: {} };
+  const t0 = 5_000_000_000;
+  for (const ip of player.hackedIps) touchAccess(player, ip, t0);
+  assert.deepEqual(reconcileAccess(player, servers, new Set(), t0 + 60_000), []);
+  const later = t0 + rotationMs('bank') + 1;
+  const revoked = reconcileAccess(player, servers, new Set(['10.0.0.4']), later);
+  assert.deepEqual(revoked, ['10.0.0.2'], 'bank idle rotated; connected and quest kept; personal still within its window');
+  assert.ok(!player.hackedIps.includes('10.0.0.2'));
+  assert.ok(player.hackedIps.includes('10.0.0.1'));
+  // Access with no timestamp (old players) gets a grace period instead of being revoked.
+  const old: any = { hackedIps: ['10.0.0.2'], accessAt: undefined };
+  assert.deepEqual(reconcileAccess(old, servers, new Set(), later), []);
+  assert.equal(old.accessAt['10.0.0.2'], later);
+});

@@ -7,6 +7,7 @@ import { SERVER_TYPE_LABELS, secondsLeft, versionLabel } from '../../game/labels
 import { HUNT_KIND_BY_TYPE, HUNT_KIND_TEXT, HUNT_MINUTES, formatCountdown, traceHeatSeconds } from '../../game/traceHeat.js';
 import { CyberProgress } from '../ui/CyberProgress.js';
 import { bestSoftware } from '../../game/bestSoftware.js';
+import { accessTimeLeft, formatWindow, rotationWindow } from '../../game/worldReaction.js';
 
 const money = (v: number) => `US$ ${Math.round(v).toLocaleString('pt-BR')}`;
 
@@ -89,6 +90,7 @@ export const TargetServerView: React.FC = () => {
   const tracingHere = !!activeTrace?.isActive && activeTrace.targetIp === server.ip;
   const cost = (type: ProcessType, sizeMb = 0) => (tracingHere ? ` · −${traceHeatSeconds(type, sizeMb)} s` : '');
   const hunt = player.pendingHunts?.find(h => h.ip === server.ip);
+  const accessLeft = accessTimeLeft(player, server.ip, server.type, now);
 
   const download = (file: SoftwareItem) => startProcess('download', { targetIp: server.ip, targetFileId: file.id, targetFileName: file.name });
   const progressRow = (p: GameProcess, label: string) => (
@@ -109,6 +111,7 @@ export const TargetServerView: React.FC = () => {
               <span>{SERVER_TYPE_LABELS[server.type] || server.type}</span>
               <span>Hasher {versionLabel(hasher)}</span>
               <span>Firewall {versionLabel(server.security.firewallLevel)}</span>
+              {!!server.patchLevel && <span className="text-red-500" title="Os administradores reforçaram a segurança depois de várias invasões. Relaxa em cerca de 1 h sem invasões.">Patch +{server.patchLevel}</span>}
             </div>
             {server.description && <p className="mt-2 text-sm text-gray-500 max-w-[70ch]">{server.description}</p>}
           </div>
@@ -130,7 +133,9 @@ export const TargetServerView: React.FC = () => {
           <div>
             <h3 className="hw-stage__title">Invadir</h3>
             <p className="hw-stage__status">
-              {isBreached ? 'Senha quebrada. Você tem acesso root.'
+              {isBreached ? (accessLeft === null
+                ? `Senha quebrada. Você tem acesso root; se ficar ${formatWindow(rotationWindow(server.type))} sem voltar, trocam a senha.`
+                : `Senha quebrada. Acesso expira em ${formatWindow(accessLeft)} se você não voltar.`)
                 : canCrack ? `Seu cracker ${versionLabel(crackerVersion)} quebra o Hasher ${versionLabel(hasher)} deste alvo.`
                   : `Seu cracker ${versionLabel(crackerVersion)} é fraco para o Hasher ${versionLabel(hasher)}.`}
             </p>
