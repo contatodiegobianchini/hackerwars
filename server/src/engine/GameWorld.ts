@@ -632,7 +632,7 @@ export class GameWorld {
 
   // --- Consequências por deixar rastros (HuntEngine) ---
 
-  private emitTo(userId: string, event: string, payload: unknown) {
+  public emitTo(userId: string, event: string, payload: unknown) {
     const io = (this.proxyTraceEngine as any)['io'];
     io?.to(userId).emit(event, payload);
   }

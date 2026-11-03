@@ -75,6 +75,7 @@
 .hw-stat:hover { border-color: var(--linha-forte); }
 .hw-stat small { font-family: var(--font-text); font-weight: 500; font-size: 11px; color: var(--nevoa); }
 .hw-stat--busy { border-color: rgba(255, 181, 71, .5); }
+.hw-stat--coin { border-color: rgba(45, 226, 230, .55); color: var(--neon-ciano); }
 
 .hw-icon-btn {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
@@ -459,4 +460,19 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, te
 /* Documentos legíveis (pistas e segredos) */
 @layer components {
   .hw-note { padding: 10px 12px; border-left: 3px solid var(--neon-ciano); border-radius: 0 4px 4px 0; background: rgba(45, 226, 230, .07); font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; color: var(--papel); white-space: pre-wrap; overflow-wrap: anywhere; }
+}
+
+/* Loja de CyberCoins */
+@layer components {
+  .hw-shop-balance { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 1px solid var(--neon-ciano); border-radius: 8px; background: var(--painel); color: var(--neon-ciano); box-shadow: 0 0 22px rgba(45, 226, 230, .12); }
+  .hw-shop-balance__value { font-family: var(--font-display); font-weight: 900; font-size: 40px; line-height: 1; color: var(--papel); }
+  .hw-shop-balance__label { font-size: 13px; color: var(--nevoa); }
+  .hw-shop-title { font-family: var(--font-display); font-weight: 900; font-size: 24px; margin: 0 0 6px; }
+  .hw-shop-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .hw-shop-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--linha); border-radius: 8px; background: var(--painel); color: var(--neon-ciano); }
+  .hw-shop-card h3 { margin: 0; font-size: 17px; font-weight: 700; color: var(--papel); }
+  .hw-shop-card p { margin: 0; font-size: 13px; color: var(--nevoa); flex: 1; }
+  .hw-shop-card small { color: var(--nevoa); }
+  .hw-shop-card button:disabled { opacity: .5; cursor: not-allowed; }
+  .hw-shop-warn { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--sirene); border-radius: 6px; color: var(--sirene); font-size: 13px; }
 }

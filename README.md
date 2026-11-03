@@ -81,4 +81,5 @@ O arquivo `.shardcloud` já está configurado. No primeiro boot, `scripts/shardc
    - `DATABASE_URL` (connection string do Postgres, ex.: banco criado na própria ShardCloud). As tabelas são criadas automaticamente no primeiro boot.
    - `JWT_SECRET` (mín. 32 caracteres), `ADMIN_PASSWORD` (mín. 20 caracteres)
    - `FRONTEND_ORIGIN` = URL pública do app (ex.: `https://hackerwars.shardweb.app`) — necessário para o CORS dos POSTs.
+   - CyberCoins (opcional, a loja fica desativada sem elas): `STRIPE_SECRET_KEY` (comece com a chave de teste `sk_test_...`), `STRIPE_WEBHOOK_SECRET` (`whsec_...`, do endpoint `https://SEU-APP/api/shop/webhook` com os eventos `checkout.session.completed` e `checkout.session.async_payment_succeeded`) e `PUBLIC_URL` (URL pública do app, usada nos redirecionamentos do checkout).
 3. A porta vem de `PORT` (o servidor já respeita).

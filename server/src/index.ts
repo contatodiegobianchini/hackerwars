@@ -7,6 +7,7 @@ import { ProcessEngine } from './engine/ProcessEngine.js';
 import { initializeSupabaseDb } from './database/supabase.js';
 import { createAuthRouter } from './routes/authRoutes.js';
 import { createHealthRouter } from './routes/healthRoutes.js';
+import { createShopRouter, createStripeWebhookRouter } from './routes/shopRoutes.js';
 import { setupSocketListeners } from './sockets/index.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -16,15 +17,19 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
 
 const app = express();
 app.use(cors());
-app.use(express.json());
 
 await initializeSupabaseDb();
 
 const gameWorld = new GameWorld();
+
+// The Stripe webhook needs the raw body, so it goes before the JSON parser.
+app.use('/api/shop/webhook', createStripeWebhookRouter(gameWorld));
+app.use(express.json());
 const processEngine = new ProcessEngine(gameWorld);
 
 app.use('/api/auth', createAuthRouter(gameWorld));
 app.use('/api/health', createHealthRouter());
+app.use('/api/shop', createShopRouter(gameWorld));
 
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
