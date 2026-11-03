@@ -35,6 +35,8 @@
    Shell: cabeçalho, zonas, abas, conteúdo
    ========================================================================= */
 .app-shell { background: var(--madrugada); }
+/* 100vh passa da área visível no celular (barra do navegador): usa a altura dinâmica. */
+@supports (height: 100dvh) { .app-shell { height: 100dvh; } }
 
 .hw-header {
   height: var(--header-h);
@@ -172,7 +174,8 @@
 @media (max-width: 767px) {
   .hw-header { padding: 0 10px; gap: 8px; }
   .hw-brand__name { font-size: 22px; }
-  .hw-main { padding: 14px 14px 96px; }
+  /* Espaço no fim da rolagem: altura da barra inferior (~60px) + área segura + folga. */
+  .hw-main { padding: 14px 14px calc(88px + env(safe-area-inset-bottom)); }
   .hw-zone-title { font-size: 32px; }
   .hw-drawer { top: auto; height: 86vh; width: 100vw; border-left: 0; border-top: 1px solid var(--linha); border-radius: 10px 10px 0 0; animation-name: drawer-in-up; }
 }
