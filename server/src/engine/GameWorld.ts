@@ -25,6 +25,7 @@ import { MissionEngine } from './MissionEngine.js';
 import { HUNT_KIND_TEXT, reconcileHunts } from './HuntEngine.js';
 import { traceHeatSeconds } from './traceHeat.js';
 import { applySecretDownload, ensureSecrets } from './secrets.js';
+import { LOW_MID_TEMPLATES, buildTargetServer, ensureTargets, inBand, pickInBand, scanBand, withRange, type Band } from './targetCatalog.js';
 import { CryptoEngine } from './CryptoEngine.js';
 import { BlackMarketEngine } from './BlackMarketEngine.js';
 import { DefenseEngine } from './DefenseEngine.js';
@@ -73,7 +74,7 @@ export class GameWorld {
       this.indexServerBankAccounts(srv);
     });
     // Hidden servers and clue files (also added to worlds saved before they existed).
-    for (const srv of ensureSecrets(this.servers)) { (this as any).indexServerBankAccounts?.(srv); dbHelpers.saveServer(srv); }
+    for (const srv of [...ensureTargets(this.servers), ...ensureSecrets(this.servers)]) { (this as any).indexServerBankAccounts?.(srv); dbHelpers.saveServer(srv); }
 
     this.missionEngine = new MissionEngine();
     this.cryptoEngine = new CryptoEngine();
@@ -1230,19 +1231,21 @@ export class GameWorld {
   /** Network scan: reveals a known-but-unseen server, or generates a new one. Never reveals hidden servers. */
   public discoverRandomIp(userId: string): { success: boolean; server?: VirtualServer; message: string } {
     const player = this.getOrCreatePlayer(userId);
+    const band = scanBand(bestSoftware(player.software, 'cracker')?.version ?? 1);
     const unseen = Array.from(this.servers.values()).filter(s => !s.hidden && s.type !== 'honeypot' && !player.discoveredIps.includes(s.ip));
+    const inReach = unseen.filter(s => inBand(s.security.hasherLevel, band));
     let server: VirtualServer;
-    if (unseen.length > 0) {
-      server = unseen[Math.floor(Math.random() * unseen.length)];
+    if (inReach.length > 0) {
+      server = inReach[Math.floor(Math.random() * inReach.length)];
       player.discoveredIps.push(server.ip);
       this.savePlayerState(userId);
     } else {
-      server = this.generateProceduralServer(userId);
+      server = this.generateProceduralServer(userId, band);
     }
     return { success: true, server, message: `Varredura encontrou ${server.hostname} (${server.ip}).` };
   }
 
-  public generateProceduralServer(userId: string = 'user-zero-cool-1'): VirtualServer {
+  public generateProceduralServer(userId: string = 'user-zero-cool-1', band?: Band): VirtualServer {
     const targetPool = [
       // 1. Corporações e Tech
       { name: 'Pear Inc. Cloud Storage', domain: 'cloud.pear-inc.com', type: 'corporate' as const, desc: 'Datacenter corporativo da fabricante de smartphones de luxo.' },
@@ -1282,98 +1285,21 @@ export class GameWorld {
       { name: 'Pentágono Nuclear CyberGrid', domain: 'norad-core.defense-gov.mil', type: 'government' as const, desc: 'Supercomputador militar de contenção balística. Segurança de nível 50.0!' },
     ];
 
-    const pick = targetPool[randomInt(0, targetPool.length)];
-    const nodeSuffix = randomInt(100, 1000);
-    const ip = `${randomInt(11, 211)}.${randomInt(0, 256)}.${randomInt(0, 256)}.${randomInt(2, 252)}`;
-
-    // Tiered hasher and firewall levels by target category
-    let hasherLevel = 1.5;
-    let firewallLevel = 1.2;
-    if (pick.type === 'government') {
-      hasherLevel = Number((secureRandom() * 25 + 25).toFixed(1)); // v25.0 - v50.0
-      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 3).toFixed(1));
-    } else if (pick.type === 'cartel' || pick.type === 'bank') {
-      hasherLevel = Number((secureRandom() * 15 + 12).toFixed(1)); // v12.0 - v27.0
-      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 2).toFixed(1));
-    } else if (pick.type === 'corporate') {
-      hasherLevel = Number((secureRandom() * 14 + 6).toFixed(1)); // v6.0 - v20.0
-      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 2).toFixed(1));
-    } else {
-      hasherLevel = Number((secureRandom() * 4 + 1.2).toFixed(1)); // v1.2 - v5.2
-      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 1).toFixed(1));
-    }
-
-    const isHighTier = hasherLevel >= 15.0;
-    const isCartelOrBank = pick.type === 'cartel' || pick.type === 'bank';
-
-    const hostnameSlug = pick.domain.split('.')[0] + `-node${nodeSuffix}`;
-    const hostname = `${hostnameSlug}.${pick.domain.split('.').slice(1).join('.')}`;
-
-    const srv: VirtualServer = {
-      id: `srv-${uuidv4().substring(0, 8)}`,
-      ip,
-      hostname: `${pick.name} (#${nodeSuffix})`,
-      domain: hostname,
-      type: pick.type,
-      isOnline: true,
-      description: pick.desc,
-      hardware: {
-        cpuPower: Number((hasherLevel * 0.7 + 2.5).toFixed(1)),
-        ramGb: isHighTier ? 256 : (isCartelOrBank ? 64 : 16),
-        hddMb: isHighTier ? 150000 : (isCartelOrBank ? 25000 : 5000),
-        networkMbps: isHighTier ? 5000 : (isCartelOrBank ? 1000 : 100),
-      },
-      security: {
-        hasherLevel,
-        firewallLevel,
-        password: `key_${randomInt(10000, 100000)}`,
-        isBreached: false,
-        openPorts: [
-          { port: 80, service: 'HTTP', open: true, version: 'Nginx 1.24' },
-          { port: 22, service: 'SSH', open: true, version: 'OpenSSH 9.0' },
-          ...(isCartelOrBank ? [{ port: 443, service: 'TLS_VAULT', open: true, version: 'SecureVault v3' }] : []),
-          ...(hasherLevel >= 30 ? [{ port: 9999, service: 'QUANTUM_PORT', open: true, version: 'QuantumGateway v5' }] : []),
-        ],
-      },
-      files: [
-        {
-          id: `file-${uuidv4().substring(0, 8)}`,
-          name: `dados_confidenciais_${nodeSuffix}.dat`,
-          type: 'warez',
-          version: Number(hasherLevel.toFixed(1)),
-          sizeMb: Math.round(hasherLevel * 15 + 20),
-          isInstalled: false,
-        },
-        ...(hasherLevel >= 6.0 ? [{
-          id: `file-${uuidv4().substring(0, 8)}`,
-          name: `CrackMaster_v${hasherLevel.toFixed(1)}.crc`,
-          type: 'cracker' as const,
-          version: Number(hasherLevel.toFixed(1)),
-          sizeMb: Math.round(hasherLevel * 2 + 10),
-          isInstalled: false,
-        }] : []),
-      ],
-      bankAccounts: isCartelOrBank ? [
-        {
-          accountNumber: `ACC-${randomInt(10000, 100000)}`,
-          bankIp: '12.189.44.10',
-          bankName: 'MegaBank Global',
-          balance: Math.round(hasherLevel * 15000 + secureRandom() * 25000),
-          password: `secret_${nodeSuffix}`,
-          ownerName: pick.name,
-        }
-      ] : undefined,
-      logs: [],
-      activeMiners: [],
-      rewardCash: Math.round(hasherLevel * 3500 + 1000),
-      rewardRep: Math.round(hasherLevel * 450 + 150),
-    };
+    const templates = [
+      ...targetPool.map(x => withRange(x.name, x.domain, x.type, x.desc)),
+      ...LOW_MID_TEMPLATES,
+    ];
+    const player = this.getOrCreatePlayer(userId);
+    const rng = () => secureRandom();
+    const { template, hasher } = pickInBand(templates, band ?? scanBand(bestSoftware(player.software, 'cracker')?.version ?? 1, rng), rng);
+    let ip = '';
+    do { ip = `${randomInt(11, 211)}.${randomInt(0, 256)}.${randomInt(0, 256)}.${randomInt(2, 252)}`; } while (this.servers.has(ip));
+    const srv = buildTargetServer(template, hasher, ip, randomInt(100, 1000), rng);
 
     this.servers.set(ip, srv);
     this.indexServerBankAccounts(srv);
     dbHelpers.saveServer(srv);
 
-    const player = this.getOrCreatePlayer(userId);
     if (!player.discoveredIps.includes(ip)) {
       player.discoveredIps.push(ip);
       this.savePlayerState(userId);
@@ -2090,7 +2016,7 @@ export class GameWorld {
       this.servers.set(s.ip, s);
       this.indexServerBankAccounts(s);
     });
-    for (const srv of ensureSecrets(this.servers)) { (this as any).indexServerBankAccounts?.(srv); dbHelpers.saveServer(srv); }
+    for (const srv of [...ensureTargets(this.servers), ...ensureSecrets(this.servers)]) { (this as any).indexServerBankAccounts?.(srv); dbHelpers.saveServer(srv); }
 
     return {
       success: true,
