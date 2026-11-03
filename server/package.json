@@ -18,6 +18,7 @@
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1",
     "socket.io": "^4.7.5",
+    "stripe": "^23.1.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

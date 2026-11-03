@@ -43,6 +43,9 @@ export const Header: React.FC = () => {
         <button className="hw-stat" onClick={() => setCurrentView('bank')} title="Saldo em dólar">
           <small>US$</small>{formatCash(player.cash)}
         </button>
+        <button className="hw-stat hw-stat--coin" onClick={() => setCurrentView('shop')} title="CyberCoins: acelere o jogo">
+          <small>CC</small>{(player.cyberCoins || 0).toLocaleString('pt-BR')}
+        </button>
         <button className="hw-stat hidden sm:inline-flex" onClick={() => setCurrentView('crypto')} title="Carteira de bitcoin">
           <small>BTC</small>{player.crypto.toFixed(3).replace('.', ',')}
         </button>

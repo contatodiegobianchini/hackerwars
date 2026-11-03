@@ -442,6 +442,10 @@ export interface Player {
   secretsFound?: string[];
   /** Last time each root access was used (ms), for password rotation. */
   accessAt?: Record<string, number>;
+  /** Premium currency, bought with real money, spent on speed only. */
+  cyberCoins?: number;
+  /** Turbo (2x process speed) active until this time (ms). */
+  turboUntil?: number;
   missionStars?: Record<string, number>;
   dailyStreak?: { dayKey: string; count: number };
   operationLog?: Record<string, number>;

@@ -36,6 +36,7 @@ export const ZONES: Zone[] = [
     { view: 'black_market', label: 'Black Market' },
     { view: 'clans', label: 'Clãs' },
     { view: 'leaderboard', label: 'Ranking' },
+    { view: 'shop', label: 'CyberCoins' },
   ] },
 ];
 

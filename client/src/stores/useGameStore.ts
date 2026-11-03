@@ -50,6 +50,7 @@ export type GameView =
   | 'logs'
   | 'leaderboard'
   | 'tutorial'
+  | 'shop'
   | 'admin_panel';
 
 export interface ToastItem {
@@ -154,6 +155,10 @@ interface GameState {
   disconnectTarget: () => void;
   startProcess: (type: ProcessType, params: { targetIp?: string; targetFileId?: string; targetFileName?: string; softwareId?: string; details?: any }) => void;
   cancelProcess: (processId: string) => void;
+  speedUpProcess: (processId: string) => void;
+  buyTurbo: (offerId: string) => void;
+  buyCoinPackage: (packageId: string) => Promise<void>;
+  confirmCoinPurchase: (sessionId: string) => Promise<void>;
   bankTransfer: (sourceAcc: string, destAcc: string, amount: number, bankIp: string) => void;
   upgradeHardware: (type: 'cpu' | 'gpu' | 'ram' | 'hdd' | 'network' | 'vpn' | 'cooling') => void;
   acceptMission: (missionId: string) => void;
@@ -368,6 +373,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     socket.on('missions_update', (res) => { if (Array.isArray(res?.missions)) set({ missions: res.missions }); });
     socket.on('hunt_notice', (res) => { if (res?.title) get().addToast(res.title, res.message, res.tone || 'info'); });
     socket.on('player_update', (res) => { if (res?.player) set({ player: res.player }); });
+    socket.on('shop_result', (res) => { if (res?.player) set({ player: res.player }); if (res?.message) get().addToast('CyberCoins', res.message, res.success ? 'success' : 'warning'); });
     socket.on('story_chapters_update', (res) => { if (res.storyChapters) set({ storyChapters: res.storyChapters }); if (res.player) set({ player: res.player }); });
     socket.on('story_choice_result', (res) => { if (res.player) set({ player: res.player }); if (res.storyChapters) set({ storyChapters: res.storyChapters }); if (res.darkChatChannels) set({ darkChatChannels: res.darkChatChannels }); get().addToast('Modo História', res.message, res.success ? 'success' : 'danger'); });
     socket.on('disconnect', () => { /* Socket.IO reconnects automatically. */ });
@@ -378,6 +384,27 @@ export const useGameStore = create<GameState>((set, get) => ({
   disconnectTarget: () => { get().socket?.emit('disconnect_target'); set({ activeConnection: null, currentView: 'my_server' }); },
   startProcess: (type, params) => { const socket = get().socket; if (socket) socket.emit('start_process', { type, ...params }); },
   cancelProcess: (processId) => { get().socket?.emit('cancel_process', { processId }); },
+  speedUpProcess: (processId) => { get().socket?.emit('speed_up_process', { processId }); },
+  buyTurbo: (offerId) => { get().socket?.emit('buy_turbo', { offerId }); },
+  buyCoinPackage: async (packageId) => {
+    try {
+      const res = await fetch('/api/shop/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${get().token || getAuthToken() || ''}` }, body: JSON.stringify({ packageId }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) { window.location.href = data.url; return; }
+      get().addToast('CyberCoins', data.error || 'Não foi possível abrir o pagamento.', 'danger');
+    } catch { get().addToast('CyberCoins', 'Sem conexão com o servidor de pagamentos.', 'danger'); }
+  },
+  confirmCoinPurchase: async (sessionId) => {
+    try {
+      const res = await fetch(`/api/shop/verify?session_id=${encodeURIComponent(sessionId)}`, { headers: { Authorization: `Bearer ${get().token || getAuthToken() || ''}` } });
+      const data = await res.json().catch(() => ({}));
+      if (data.player) set({ player: data.player });
+      if (data.status === 'credited') get().addToast('CyberCoins recebidas', `+${data.coins} CyberCoins na sua conta.`, 'success');
+      else if (data.status === 'already') get().addToast('CyberCoins', 'Essa compra já foi creditada.', 'info');
+      else if (data.status === 'unpaid') get().addToast('CyberCoins', 'O pagamento ainda não foi confirmado. Se você pagou, as moedas chegam em instantes.', 'warning');
+      else get().addToast('CyberCoins', data.error || 'Não foi possível confirmar o pagamento.', 'danger');
+    } catch { get().addToast('CyberCoins', 'Não foi possível confirmar o pagamento agora.', 'danger'); }
+  },
   bankTransfer: (sourceAcc, destAcc, amount, bankIp) => { get().socket?.emit('bank_transfer', { sourceAcc, destAcc, amount, bankIp }); },
   upgradeHardware: (type) => { get().socket?.emit('upgrade_hardware', { type }); },
   acceptMission: (missionId) => { get().socket?.emit('accept_mission', { missionId }); },

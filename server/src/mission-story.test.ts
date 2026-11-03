@@ -391,3 +391,80 @@ test('world reaction: idle root access is rotated, active and quest access is ke
   assert.deepEqual(reconcileAccess(old, servers, new Set(), later), []);
   assert.equal(old.accessAt['10.0.0.2'], later);
 });
+
+test('cybercoins: catalog, idempotent credit, spending and turbo', async () => {
+  const c = await import('./engine/cyberCoins.js');
+  assert.ok(c.COIN_PACKAGES.length >= 3);
+  // More coins per real used on bigger packs, and the bonus is part of `coins`.
+  const rates = c.COIN_PACKAGES.map(p => p.coins / p.priceCents);
+  assert.ok(rates.every((r, i) => i === 0 || r > rates[i - 1]));
+  assert.ok(c.COIN_PACKAGES.every(p => Number.isInteger(p.priceCents) && p.coins > p.bonus - 1));
+
+  const p: any = makePlayer();
+  assert.equal(c.grantPurchase(p, 'cs_1', 330), true);
+  assert.equal(c.grantPurchase(p, 'cs_1', 330), false, 'the same session never pays twice');
+  assert.equal(p.cyberCoins, 330);
+
+  assert.equal(c.spendCoins(p, 0), false);
+  assert.equal(c.spendCoins(p, -5), false);
+  assert.equal(c.spendCoins(p, 1.5), false);
+  assert.equal(c.spendCoins(p, 1000), false);
+  assert.equal(c.spendCoins(p, 30), true);
+  assert.equal(p.cyberCoins, 300);
+
+  assert.equal(c.speedUpCost(500), 1);
+  assert.equal(c.speedUpCost(60_000), 4);
+  const now = 10_000_000;
+  assert.equal(c.turboActive(p, now), false);
+  assert.equal(c.buyTurbo(p, 'turbo_1h', now).ok, true);
+  assert.equal(p.cyberCoins, 260);
+  assert.equal(c.turboActive(p, now + 30 * 60_000), true);
+  assert.equal(c.buyTurbo(p, 'turbo_1h', now).ok, true);
+  assert.equal(p.turboUntil, now + 2 * 3600_000, 'buying again extends it');
+  assert.equal(c.buyTurbo(p, 'nope', now).ok, false);
+  const broke: any = makePlayer();
+  assert.equal(c.buyTurbo(broke, 'turbo_24h', now).ok, false);
+  assert.equal(broke.turboUntil, undefined);
+});
+
+test('stripe fulfillment: pays only paid sessions that match the catalog, once', async () => {
+  const { fulfillSession } = await import('./routes/shopRoutes.js');
+  const player: any = makePlayer();
+  const emitted: string[] = [];
+  const world: any = { getPlayer: () => player, savePlayerState: () => {}, emitTo: (_u: string, e: string) => emitted.push(e) };
+  const paid = { id: 'cs_ok', payment_status: 'paid', amount_total: 2490, currency: 'brl', metadata: { userId: 'u1', packageId: 'pack_300' } };
+
+  assert.equal(fulfillSession(world, { ...paid, payment_status: 'unpaid' }).status, 'unpaid');
+  assert.equal(fulfillSession(world, { ...paid, amount_total: 1 }).status, 'invalid', 'wrong amount');
+  assert.equal(fulfillSession(world, { ...paid, currency: 'usd' }).status, 'invalid', 'wrong currency');
+  assert.equal(fulfillSession(world, { ...paid, metadata: { userId: 'u1', packageId: 'free' } }).status, 'invalid');
+  assert.equal(player.cyberCoins, undefined);
+
+  assert.deepEqual(fulfillSession(world, paid), { status: 'credited', coins: 330, userId: 'u1' });
+  assert.equal(fulfillSession(world, paid).status, 'already');
+  assert.equal(player.cyberCoins, 330);
+  assert.deepEqual(emitted, ['player_update', 'hunt_notice']);
+});
+
+test('speed up: finishes a running process for CyberCoins and turbo halves new ones', async () => {
+  const { ProcessEngine } = await import('./engine/ProcessEngine.js');
+  const player: any = makePlayer();
+  player.cyberCoins = 10;
+  const world: any = { getPlayer: () => player, savePlayerState: () => {} };
+  const engine: any = new ProcessEngine(world);
+  const now = Date.now();
+  engine.processes.set('p1', { id: 'p1', playerId: 'u1', type: 'crack', status: 'running', startTime: now, durationMs: 60_000, endTime: now + 60_000, progress: 0 });
+  assert.equal(engine.speedUpProcess('p1', 'other').success, false, 'not your process');
+  assert.equal(engine.speedUpProcess('missing', 'u1').success, false);
+  const poor = { ...player, cyberCoins: 1 };
+  world.getPlayer = () => poor;
+  assert.equal(engine.speedUpProcess('p1', 'u1').success, false, 'not enough coins');
+  assert.equal(engine.processes.get('p1').startTime, now);
+  world.getPlayer = () => player;
+  const r = engine.speedUpProcess('p1', 'u1');
+  assert.equal(r.success, true);
+  assert.ok(r.cost! >= 3 && r.cost! <= 4);
+  assert.equal(player.cyberCoins, 10 - r.cost!);
+  assert.ok(Date.now() - engine.processes.get('p1').startTime >= 60_000, 'elapsed time now covers the duration');
+  engine.processes.clear();
+});

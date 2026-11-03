@@ -36,6 +36,7 @@ import { ZoneTabs } from './components/layout/ZoneTabs.js';
 import { ChatDrawer } from './components/layout/ChatDrawer.js';
 import { TraceBar } from './components/layout/TraceBar.js';
 import { HomeView } from './components/views/HomeView.js';
+import { ShopView } from './components/views/ShopView.js';
 
 export const App: React.FC = () => {
   const {
@@ -43,7 +44,9 @@ export const App: React.FC = () => {
     isAuthLoading,
     checkAuth,
     currentView,
-    toggleTerminal
+    toggleTerminal,
+    confirmCoinPurchase,
+    setCurrentView,
   } = useGameStore();
 
   useEffect(() => {
@@ -65,6 +68,18 @@ export const App: React.FC = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [currentUser, toggleTerminal]);
+
+  // Back from Stripe Checkout: confirm the payment so the coins show up right away.
+  useEffect(() => {
+    if (!currentUser) return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('cc');
+    if (!status) return;
+    const sessionId = params.get('session_id');
+    window.history.replaceState({}, '', window.location.pathname);
+    setCurrentView('shop');
+    if (status === 'success' && sessionId) confirmCoinPurchase(sessionId);
+  }, [currentUser]);
 
   if (isAuthLoading) {
     return (
@@ -106,6 +121,7 @@ export const App: React.FC = () => {
       case 'logs': return <MyLogsView />;
       case 'leaderboard': return <LeaderboardView />;
       case 'tutorial': return <TutorialView />;
+      case 'shop': return <ShopView />;
       case 'admin_panel': return <AdminPanelView />;
       default: return <HomeView />;
     }

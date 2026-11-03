@@ -1,5 +1,6 @@
 import { Socket } from 'socket.io';
 import { GameWorld } from '../engine/GameWorld.js';
+import { buyTurbo } from '../engine/cyberCoins.js';
 import { ProcessEngine } from '../engine/ProcessEngine.js';
 
 export function registerProcessHandlers(
@@ -18,6 +19,18 @@ export function registerProcessHandlers(
       : (({ type: _t, ...rest }) => rest)(payload);
     const result = processEngine.startProcess(currentUserId, type, params || {});
     socket.emit('process_started', result);
+  });
+
+  socket.on('speed_up_process', ({ processId }: { processId: string }) => {
+    const result = processEngine.speedUpProcess(String(processId), currentUserId);
+    socket.emit('shop_result', { ...result, player: gameWorld.getPlayer(currentUserId) });
+  });
+
+  socket.on('buy_turbo', ({ offerId }: { offerId: string }) => {
+    const player = gameWorld.getPlayer(currentUserId);
+    const result = buyTurbo(player, offerId);
+    if (result.ok) gameWorld.savePlayerState(currentUserId);
+    socket.emit('shop_result', { success: result.ok, message: result.message, player });
   });
 
   socket.on('cancel_process', ({ processId }: { processId: string }) => {
