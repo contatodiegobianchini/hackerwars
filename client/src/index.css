@@ -35,8 +35,9 @@
    Shell: cabeçalho, zonas, abas, conteúdo
    ========================================================================= */
 .app-shell { background: var(--madrugada); }
-/* 100vh passa da área visível no celular (barra do navegador): usa a altura dinâmica. */
-@supports (height: 100dvh) { .app-shell { height: 100dvh; } }
+/* 100vh/100dvh passam da área visível no Chrome do celular (barra de endereço): a casca
+   fica presa à área realmente visível, e a barra inferior (fixed) fica no mesmo limite. */
+.app-shell { position: fixed; inset: 0; height: auto; width: auto; }
 
 .hw-header {
   height: var(--header-h);
