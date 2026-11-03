@@ -1,6 +1,7 @@
 import type { Mission, Player, StoryChapter, VirtualServer } from '../types/game.js';
 import type { GameView } from '../stores/useGameStore.js';
 import { HUNT_KIND_TEXT } from './traceHeat.js';
+import { bestSoftware } from './bestSoftware.js';
 
 /** What a button on the home screen does. */
 export type StepAction =
@@ -45,7 +46,7 @@ const OBJECTIVE_NEED: Record<string, Need> = {
 const fmtVersion = (v: number) => `v${v.toFixed(1).replace('.', ',')}`;
 const money = (v: number) => `US$ ${v.toLocaleString('pt-BR')}`;
 
-export const crackerVersion = (player: Player) => player.software.find(s => s.type === 'cracker')?.version ?? 1;
+export const crackerVersion = (player: Player) => bestSoftware(player.software, 'cracker')?.version ?? 1;
 
 export const shortChapterTitle = (chapter: StoryChapter) => chapter.title.replace(/^Cap[íi]tulo\s+\d+\s*:\s*/i, '');
 

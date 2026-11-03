@@ -1,5 +1,6 @@
 import { useGameStore } from '../stores/useGameStore.js';
 import { SoftwareItem } from '../types/game.js';
+import { bestSoftware } from '../game/bestSoftware.js';
 
 export const useSoftwareActions = () => {
   const { player, activeConnection, startProcess } = useGameStore();
@@ -15,7 +16,7 @@ export const useSoftwareActions = () => {
 
   const handleInstallMiner = () => {
     if (!activeConnection || !player) return;
-    const playerMiner = player.software.find(s => s.type === 'miner');
+    const playerMiner = bestSoftware(player.software, 'miner');
     if (!playerMiner) {
       alert('Você não possui um software minerador instalado!');
       return;

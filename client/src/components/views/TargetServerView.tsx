@@ -6,6 +6,7 @@ import type { GameProcess, ProcessType, SoftwareItem } from '../../types/game.js
 import { SERVER_TYPE_LABELS, secondsLeft, versionLabel } from '../../game/labels.js';
 import { HUNT_KIND_BY_TYPE, HUNT_KIND_TEXT, HUNT_MINUTES, formatCountdown, traceHeatSeconds } from '../../game/traceHeat.js';
 import { CyberProgress } from '../ui/CyberProgress.js';
+import { bestSoftware } from '../../game/bestSoftware.js';
 
 const money = (v: number) => `US$ ${Math.round(v).toLocaleString('pt-BR')}`;
 
@@ -53,13 +54,13 @@ export const TargetServerView: React.FC = () => {
   const runningOf = (type: ProcessType, fileId?: string): GameProcess | undefined =>
     running.find(p => p.type === type && (!fileId || p.targetFileId === fileId));
 
-  const cracker = player.software.find(s => s.type === 'cracker');
+  const cracker = bestSoftware(player.software, 'cracker');
   const crackerVersion = cracker?.version ?? 1;
   const hasher = server.security.hasherLevel;
   const canCrack = crackerVersion >= hasher;
-  const spyware = player.software.find(s => s.type === 'spyware');
-  const miner = player.software.find(s => s.type === 'miner');
-  const botnet = player.software.find(s => s.type === 'ddos');
+  const spyware = bestSoftware(player.software, 'spyware');
+  const miner = bestSoftware(player.software, 'miner');
+  const botnet = bestSoftware(player.software, 'ddos');
   const myMiner = server.activeMiners?.find(m => m.ownerId === player.id);
   const mySpyware = server.activeSpyware?.find(s => s.ownerId === player.id);
   const myLogs = (server.logs || []).filter(l => l.ip === player.ip || l.action.includes(player.ip));
@@ -175,12 +176,15 @@ export const TargetServerView: React.FC = () => {
                           <p className="hw-row__title">{file.name}</p>
                           <p className="hw-row__sub">{file.sizeMb} MB · {versionLabel(file.version)}{isGoal ? ' · objetivo' : ''}</p>
                         </div>
+                        {owned && player.software.find(sw => sw.name === file.name)?.content && (
+                          <p className="hw-note w-full order-last">{player.software.find(sw => sw.name === file.name)!.content}</p>
+                        )}
                         {owned ? <span className="text-sm text-emerald-500">Já baixado</span> : (
                           <button className="cyber-button hw-mini" onClick={() => download(file)} disabled={file.sizeMb > freeMb} title={file.sizeMb > freeMb ? 'Disco cheio' : undefined}>
                             {file.sizeMb > freeMb ? 'Disco cheio' : `Baixar${cost('download', file.sizeMb)}`}
                           </button>
                         )}
-                        {!isGoal && (
+                        {!isGoal && !file.clueIp && !file.loot && (
                           <button className="hw-icon-btn !h-8 !w-8" onClick={() => deleteRemoteFile(server.ip, file.id)} aria-label={`Apagar ${file.name} do servidor`} title="Apagar do servidor">
                             <Trash2 />
                           </button>

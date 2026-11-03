@@ -1,5 +1,6 @@
 import { Socket } from 'socket.io';
 import { GameWorld } from '../engine/GameWorld.js';
+import { bestSoftware } from '../engine/bestSoftware.js';
 
 export function registerClanHandlers(socket: Socket, gameWorld: GameWorld, currentUserId: string): void {
   socket.on('create_clan', ({ name, tag, description }: { name: string; tag: string; description: string }) => {
@@ -73,7 +74,7 @@ export function registerClanHandlers(socket: Socket, gameWorld: GameWorld, curre
   socket.on('attack_clan_territory', ({ clanId, nodeId }: { clanId: string; nodeId: string }) => {
     const player = gameWorld.getPlayer(currentUserId);
     if (player.clanId !== clanId) return socket.emit('clan_action_result', { success: false, message: 'Você só pode atacar em nome do seu próprio clã.' });
-    const botnet = player.software.find(s => s.type === 'ddos');
+    const botnet = bestSoftware(player.software, 'ddos');
     const attackPower = Math.round((botnet?.version || 1) * player.hardware.network.speedMbps * 12);
     const result = gameWorld.clanEngine.attackTerritoryNode(clanId, nodeId, attackPower);
     if (result.conquered) gameWorld.addNews(`GUERRA DE CLÃS: O clã [${player.clanId}] conquistou o nó territorial!`, 'CLAN');

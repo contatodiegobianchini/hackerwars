@@ -28,6 +28,7 @@ import { sounds } from '../utils/audio.js';
 import { soundtrack } from '../utils/soundtrack.js';
 import { getAuthToken, setAuthToken, removeAuthToken } from '../utils/tokenStorage.js';
 import confetti from 'canvas-confetti';
+import { bestSoftware } from '../game/bestSoftware.js';
 
 export type GameView =
   | 'my_server'
@@ -294,7 +295,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setMiningCoin: (coinId) => { get().socket?.emit('set_mining_coin', { coinId }); },
   toggleProxyHop: (hopIp) => { get().socket?.emit('toggle_proxy_hop', { hopIp }); },
   clearProxyChain: () => { get().socket?.emit('clear_proxy_chain'); },
-  runAntivirusScan: () => { const { startProcess, player } = get(); if (!player) return; const av = player.software.find(s => s.type === 'antivirus'); startProcess('antivirus_scan', { targetFileName: `${av?.name || 'AegisScanner'} (Varredura Completa)` }); },
+  runAntivirusScan: () => { const { startProcess, player } = get(); if (!player) return; const av = bestSoftware(player.software, 'antivirus'); startProcess('antivirus_scan', { targetFileName: `${av?.name || 'AegisScanner'} (Varredura Completa)` }); },
   cleanInfection: (infectionId) => { get().socket?.emit('clean_infection', { infectionId }); },
   toggleHoneypot: () => { get().socket?.emit('toggle_honeypot'); },
   defendNpcInvasion: (method) => { get().socket?.emit('defend_npc_invasion', { method }); },
@@ -353,6 +354,17 @@ export const useGameStore = create<GameState>((set, get) => ({
     socket.on('mission_accepted', (res) => { if (res.success) set({ player: res.player, missions: res.missions }); else get().addToast('Missão', res.message || 'Não foi possível aceitar a missão', 'warning'); });
     socket.on('mission_claimed', (res) => { if (res.success) { set({ player: res.player, missions: res.missions }); get().addToast('Missão Concluída!', res.message, 'success'); sounds.cash(); confetti({ particleCount: 80, spread: 70 }); } else get().addToast('Objetivo Incompleto', res.message, 'warning'); });
     socket.on('faction_alignment_result', (res) => { if (res.player) set({ player: res.player }); if (res.darkChatChannels) set({ darkChatChannels: res.darkChatChannels }); get().addToast('Facção Atualizada!', res.message, res.success ? 'success' : 'danger'); });
+    socket.on('secret_found', (res) => {
+      set(state => ({ player: res.player || state.player, servers: res.servers || state.servers }));
+      if (res.loot) get().addToast(`Cofre encontrado (${res.found}/${res.total})`, `${res.fileName}: +US$ ${res.loot.cash.toLocaleString('pt-BR')}${res.loot.btc ? `, +${res.loot.btc} BTC` : ''} e +${res.loot.rep} de reputação.`, 'success');
+      if (res.discoveredIp) get().addToast('Pista encontrada', `${res.clueText || res.fileName} Novo alvo: ${res.discoveredHost || res.discoveredIp} (${res.discoveredIp}).`, 'info');
+    });
+    socket.on('ip_discovered', (res) => {
+      if (res?.success) {
+        set(state => ({ player: res.player || state.player, servers: res.servers || state.servers }));
+        get().addToast('Varredura concluída', res.message, 'info');
+      } else if (res?.message) get().addToast('Varredura', res.message, 'warning');
+    });
     socket.on('missions_update', (res) => { if (Array.isArray(res?.missions)) set({ missions: res.missions }); });
     socket.on('hunt_notice', (res) => { if (res?.title) get().addToast(res.title, res.message, res.tone || 'info'); });
     socket.on('player_update', (res) => { if (res?.player) set({ player: res.player }); });
