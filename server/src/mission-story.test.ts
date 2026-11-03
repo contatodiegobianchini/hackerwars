@@ -264,3 +264,43 @@ test('daily streak grows on consecutive days and resets after a gap', async () =
   assert.equal(p.dailyStreak.count, 1);
   assert.equal(streakBonus(6), 0.5);
 });
+
+test('secrets: hidden servers and clues are added to an existing world, once', async () => {
+  const { ensureSecrets, HIDDEN_IPS } = await import('./engine/secrets.js');
+  const world = new Map<string, any>([
+    ['192.168.10.15', { ip: '192.168.10.15', files: [] }],
+    ['138.68.22.45', { ip: '138.68.22.45', files: [] }],
+  ]);
+  const changed = ensureSecrets(world);
+  assert.ok(changed.length >= HIDDEN_IPS.size + 2);
+  assert.ok(world.get('10.66.6.1').hidden);
+  assert.ok(world.get('192.168.10.15').files.some((f: any) => f.name === 'post-it_do_roteador.txt'));
+  assert.equal(ensureSecrets(world).length, 0);
+});
+
+test('secrets: a clue reveals the next server and loot pays only once', async () => {
+  const { ensureSecrets, applySecretDownload } = await import('./engine/secrets.js');
+  const world = new Map<string, any>([['192.168.10.15', { ip: '192.168.10.15', hostname: 'pizzaria', files: [] }]]);
+  ensureSecrets(world);
+  const p = makePlayer();
+  p.discoveredIps = [];
+  const pizzaria = world.get('192.168.10.15');
+  const postit = pizzaria.files.find((f: any) => f.name === 'post-it_do_roteador.txt');
+  const r = applySecretDownload(p, pizzaria, postit, world)!;
+  assert.equal(r.discoveredIp, '10.66.6.1');
+  assert.ok(p.discoveredIps.includes('10.66.6.1'));
+
+  const router = world.get('10.66.6.1');
+  const cofre = router.files.find((f: any) => f.loot);
+  assert.equal(applySecretDownload(p, router, cofre, world)!.loot!.cash, 2000);
+  assert.equal(p.cash, 2000);
+  assert.equal(applySecretDownload(p, router, cofre, world), null);
+  assert.equal(p.cash, 2000);
+});
+
+test('bestSoftware picks the highest version', async () => {
+  const { bestSoftware } = await import('./engine/bestSoftware.js');
+  const list: any[] = [{ type: 'cracker', version: 1 }, { type: 'cracker', version: 4 }, { type: 'miner', version: 9 }];
+  assert.equal(bestSoftware(list, 'cracker')!.version, 4);
+  assert.equal(bestSoftware(list, 'spyware'), undefined);
+});

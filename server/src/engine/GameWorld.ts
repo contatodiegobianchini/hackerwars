@@ -24,6 +24,7 @@ import {
 import { MissionEngine } from './MissionEngine.js';
 import { HUNT_KIND_TEXT, reconcileHunts } from './HuntEngine.js';
 import { traceHeatSeconds } from './traceHeat.js';
+import { applySecretDownload, ensureSecrets } from './secrets.js';
 import { CryptoEngine } from './CryptoEngine.js';
 import { BlackMarketEngine } from './BlackMarketEngine.js';
 import { DefenseEngine } from './DefenseEngine.js';
@@ -37,6 +38,7 @@ import { CPU_TIERS, GPU_TIERS, RAM_TIERS, HDD_TIERS, NETWORK_TIERS, VPN_TIERS, C
 import { db, dbHelpers } from '../database/sqlite.js';
 import { v4 as uuidv4 } from 'uuid';
 import { randomInt, getRandomValues } from 'crypto';
+import { bestSoftware } from './bestSoftware.js';
 
 function secureRandom(): number {
   const buf = new Uint32Array(1);
@@ -70,6 +72,8 @@ export class GameWorld {
       this.servers.set(srv.ip, srv);
       this.indexServerBankAccounts(srv);
     });
+    // Hidden servers and clue files (also added to worlds saved before they existed).
+    for (const srv of ensureSecrets(this.servers)) { (this as any).indexServerBankAccounts?.(srv); dbHelpers.saveServer(srv); }
 
     this.missionEngine = new MissionEngine();
     this.cryptoEngine = new CryptoEngine();
@@ -249,7 +253,8 @@ export class GameWorld {
   }
 
   public getAllServers(): VirtualServer[] {
-    return Array.from(this.servers.values());
+    // Hidden servers only reach a player through their discovered list.
+    return Array.from(this.servers.values()).filter(s => !s.hidden);
   }
 
   public getDiscoveredServers(userId: string = 'user-zero-cool-1'): VirtualServer[] {
@@ -792,6 +797,14 @@ export class GameWorld {
 
     this.savePlayerState(userId);
     dbHelpers.saveServer(server);
+    const secret = applySecretDownload(player, server, file, this.servers);
+    if (secret) {
+      this.savePlayerState(userId);
+      const lootKeys = new Set(Array.from(this.servers.values()).flatMap(sv => (sv.files || []).filter(f => f.loot).map(f => `${sv.ip}:${f.name}`)));
+      const found = (player.secretsFound || []).filter(k => lootKeys.has(k)).length;
+      this.emitTo(userId, 'secret_found', { ...secret, found, total: lootKeys.size, player, servers: this.getDiscoveredServers(userId) });
+      if (secret.loot) this.addNews(`Alguém achou um cofre escondido em ${server.hostname}. Ninguém sabe quem.`, 'BREACH');
+    }
     return { success: true, file };
   }
 
@@ -869,7 +882,7 @@ export class GameWorld {
     const server = this.servers.get(targetIp);
     if (!server) return { chance: 0, playerPower: 0, targetDefense: 0 };
 
-    const botnet = player.software.find(s => s.type === 'ddos');
+    const botnet = bestSoftware(player.software, 'ddos');
     const botnetVer = botnet ? botnet.version : 1.0;
 
     // VPS Amplifier Bonus
@@ -991,7 +1004,7 @@ export class GameWorld {
 
     // Servers are shared by every player: deleting a contract/campaign file would
     // make that objective impossible for everyone else.
-    if (this.isQuestFile(server.ip, server.files[index].name)) {
+    if (this.isQuestFile(server.ip, server.files[index].name) || server.files[index].clueIp || server.files[index].loot) {
       return { success: false, message: 'Este arquivo é alvo de um contrato ativo na rede e está protegido contra exclusão.' };
     }
 
@@ -1212,6 +1225,21 @@ export class GameWorld {
       ...result,
       player: this.getPlayer(userId),
     };
+  }
+
+  /** Network scan: reveals a known-but-unseen server, or generates a new one. Never reveals hidden servers. */
+  public discoverRandomIp(userId: string): { success: boolean; server?: VirtualServer; message: string } {
+    const player = this.getOrCreatePlayer(userId);
+    const unseen = Array.from(this.servers.values()).filter(s => !s.hidden && s.type !== 'honeypot' && !player.discoveredIps.includes(s.ip));
+    let server: VirtualServer;
+    if (unseen.length > 0) {
+      server = unseen[Math.floor(Math.random() * unseen.length)];
+      player.discoveredIps.push(server.ip);
+      this.savePlayerState(userId);
+    } else {
+      server = this.generateProceduralServer(userId);
+    }
+    return { success: true, server, message: `Varredura encontrou ${server.hostname} (${server.ip}).` };
   }
 
   public generateProceduralServer(userId: string = 'user-zero-cool-1'): VirtualServer {
@@ -1475,7 +1503,7 @@ export class GameWorld {
     if (!server) return { success: false, message: 'Servidor alvo não encontrado.' };
     const player = this.getOrCreatePlayer(userId);
 
-    const spywareSoft = player.software.find(s => s.type === 'spyware');
+    const spywareSoft = bestSoftware(player.software, 'spyware');
     const spywareLevel = spywareSoft ? spywareSoft.version : 1.0;
 
     if (!server.activeSpyware) server.activeSpyware = [];
@@ -2062,6 +2090,7 @@ export class GameWorld {
       this.servers.set(s.ip, s);
       this.indexServerBankAccounts(s);
     });
+    for (const srv of ensureSecrets(this.servers)) { (this as any).indexServerBankAccounts?.(srv); dbHelpers.saveServer(srv); }
 
     return {
       success: true,

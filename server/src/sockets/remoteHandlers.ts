@@ -24,8 +24,8 @@ export function registerRemoteHandlers(socket: Socket, gameWorld: GameWorld, cur
   });
 
   socket.on('discover_random_ip', () => {
-    const result = (gameWorld as any).discoverRandomIp(currentUserId);
-    socket.emit('ip_discovered', { ...result, player: gameWorld.getPlayer(currentUserId) });
+    const result = gameWorld.discoverRandomIp(currentUserId);
+    socket.emit('ip_discovered', { ...result, player: gameWorld.getPlayer(currentUserId), servers: gameWorld.getDiscoveredServers(currentUserId) });
   });
 
   socket.on('siphon_victim_crypto', ({ targetIp, address }: { targetIp: string; address: string }) => {

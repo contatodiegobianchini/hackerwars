@@ -95,7 +95,7 @@ export const BOARD_TIERS: Array<{ maxHasher: number; count: number }> = [
 ];
 export const CONTRACT_TTL_MS = 2 * 3600_000;
 
-const eligible = (servers: VirtualServer[]) => servers.filter(s => s?.ip && s.type !== 'honeypot');
+const eligible = (servers: VirtualServer[]) => servers.filter(s => s?.ip && s.type !== 'honeypot' && !s.hidden);
 const tierOf = (hasher: number) => BOARD_TIERS.findIndex(t => hasher < t.maxHasher || t.maxHasher === Infinity);
 
 /**

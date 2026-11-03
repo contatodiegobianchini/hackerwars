@@ -4,6 +4,7 @@ import type { MissionOperation } from './MissionEngine.js';
 import { HEAT_LABELS, traceHeatSeconds } from './traceHeat.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
+import { bestSoftware } from './bestSoftware.js';
 
 export const getCompileCost = (version: number): number => {
   const steps = Math.max(0, Math.round((version - 1.0) * 10));
@@ -62,7 +63,7 @@ export class ProcessEngine {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
 
-      const cracker = player.software.find(s => s.type === 'cracker');
+      const cracker = bestSoftware(player.software, 'cracker');
       const crackerVer = cracker ? cracker.version : 1.0;
       const hasherVer = target.security.hasherLevel;
 
@@ -78,7 +79,7 @@ export class ProcessEngine {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
       if (!player.hackedIps.includes(target.ip)) return { success: false, message: 'Você precisa obter acesso ROOT (Crack) antes de implantar o Spyware!' };
-      const spyware = player.software.find(s => s.type === 'spyware');
+      const spyware = bestSoftware(player.software, 'spyware');
       if (!spyware) return { success: false, message: 'Você não possui nenhum software Spyware instalado!' };
     }
 
@@ -186,7 +187,7 @@ export class ProcessEngine {
       case 'crack': {
         const target = params.targetIp ? this.gameWorld.getServer(params.targetIp) : null;
         const targetDefense = target ? target.security.hasherLevel : 1.0;
-        const playerCracker = player.software.find(s => s.type === 'cracker');
+        const playerCracker = bestSoftware(player.software, 'cracker');
         const crackerVersion = playerCracker ? playerCracker.version : 1.0;
         const computePower = cpuSpeed + gpuTflops * 0.15;
         let timeSec = ((targetDefense / crackerVersion) * 6.0) / (computePower / 2);
@@ -194,7 +195,7 @@ export class ProcessEngine {
         return Math.max(2000, Math.round(timeSec * 1000));
       }
       case 'scan': {
-        const playerScanner = player.software.find(s => s.type === 'portscan');
+        const playerScanner = bestSoftware(player.software, 'portscan');
         const scanVer = playerScanner ? playerScanner.version : 1.0;
         const timeSec = (4.0 / scanVer) / (netSpeed / 10);
         return Math.max(1500, Math.round(timeSec * 1000));
@@ -222,14 +223,14 @@ export class ProcessEngine {
       }
       case 'wipelog': return Math.max(2000, Math.round(4000 / (cpuSpeed / 2)));
       case 'antivirus_scan': {
-        const av = player.software.find(s => s.type === 'antivirus');
+        const av = bestSoftware(player.software, 'antivirus');
         const avVer = av ? av.version : 1.0;
         return Math.max(2500, Math.round((6000 / avVer) / (cpuSpeed / 2)));
       }
       case 'ddos': {
         const target = params.targetIp ? this.gameWorld.getServer(params.targetIp) : null;
         const targetNet = target ? target.hardware.networkMbps : 100;
-        const botnet = player.software.find(s => s.type === 'ddos');
+        const botnet = bestSoftware(player.software, 'ddos');
         const botnetPower = botnet ? botnet.version * netSpeed : netSpeed;
         const timeSec = Math.max(4, Math.round((targetNet / botnetPower) * 8));
         return Math.max(3500, timeSec * 1000);

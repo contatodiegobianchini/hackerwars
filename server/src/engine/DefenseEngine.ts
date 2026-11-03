@@ -1,6 +1,7 @@
 import { Player, InfectionItem, NpcInvasionEvent } from '../types/game.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Server as SocketIOServer } from 'socket.io';
+import { bestSoftware } from './bestSoftware.js';
 
 export class DefenseEngine {
   private activeInvasions: Map<string, NpcInvasionEvent> = new Map();
@@ -15,7 +16,7 @@ export class DefenseEngine {
   }
 
   public scanAndCleanInfections(player: Player): { cleanedCount: number; infections: InfectionItem[]; message: string } {
-    const av = player.software.find(s => s.type === 'antivirus');
+    const av = bestSoftware(player.software, 'antivirus');
     const avLevel = av ? av.version : 1.0;
 
     if (!player.infections) player.infections = [];
@@ -66,7 +67,7 @@ export class DefenseEngine {
   }
 
   public cleanSingleInfection(player: Player, infectionId: string): { success: boolean; message: string; infections: InfectionItem[] } {
-    const av = player.software.find(s => s.type === 'antivirus');
+    const av = bestSoftware(player.software, 'antivirus');
     const avLevel = av ? av.version : 1.0;
 
     if (!player.infections) player.infections = [];
@@ -177,7 +178,7 @@ export class DefenseEngine {
         bountyCash: bounty,
       };
     } else if (method === 'firewall') {
-      const fw = player.software.find(s => s.type === 'firewall');
+      const fw = bestSoftware(player.software, 'firewall');
       const fwLevel = fw ? fw.version : 1.0;
 
       if (fwLevel >= invasion.attackerLevel * 0.8) {

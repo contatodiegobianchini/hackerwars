@@ -199,6 +199,11 @@ export const KnownServersView: React.FC = () => {
                   <div>
                     <div className="flex items-center space-x-2">
                       <h3 className="font-bold text-sm text-gray-900">{srv.hostname}</h3>
+                      {srv.hidden && (
+                        <span className="text-[10px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-bold" title="Servidor escondido, encontrado por uma pista">
+                          Secreto
+                        </span>
+                      )}
                       {isBreached ? (
                         <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
                           ROOT OBTIDO

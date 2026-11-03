@@ -2,6 +2,7 @@ import { Player, PoliceRaidEvent, DarknetContract, DarknetAuctionItem, VirtualSe
 import { GameWorld } from './GameWorld.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
+import { bestSoftware } from './bestSoftware.js';
 
 export class ContractsAndRaidEngine {
   private gameWorld: GameWorld;
@@ -193,7 +194,7 @@ export class ContractsAndRaidEngine {
     player.completedContractIds = player.completedContractIds || [];
     if (player.completedContractIds.includes(contract.id)) return { success: false, message: 'Você já entregou este contrato.' };
 
-    const cracker = player.software.find(s => s.type === 'cracker');
+    const cracker = bestSoftware(player.software, 'cracker');
     const crackerLevel = cracker ? cracker.version : 1.0;
     if (crackerLevel < contract.requiredCrackerLevel) {
       return {

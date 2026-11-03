@@ -451,3 +451,8 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, te
     .hw-op__detail { padding: 0 14px 16px; }
   }
 }
+
+/* Documentos legíveis (pistas e segredos) */
+@layer components {
+  .hw-note { padding: 10px 12px; border-left: 3px solid var(--neon-ciano); border-radius: 0 4px 4px 0; background: rgba(45, 226, 230, .07); font-family: var(--font-data); font-size: 12.5px; line-height: 1.55; color: var(--papel); white-space: pre-wrap; overflow-wrap: anywhere; }
+}

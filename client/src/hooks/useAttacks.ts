@@ -1,5 +1,6 @@
 import { useGameStore } from '../stores/useGameStore.js';
 import { SoftwareItem } from '../types/game.js';
+import { bestSoftware } from '../game/bestSoftware.js';
 
 type GameStoreState = ReturnType<typeof useGameStore.getState>;
 
@@ -27,7 +28,7 @@ export const useAttacks = (storeOverride?: GameStoreState) => {
 
   const handlePlantSpyware = () => {
     if (!activeConnection || !player) return;
-    const playerSpyware = player.software.find(s => s.type === 'spyware');
+    const playerSpyware = bestSoftware(player.software, 'spyware');
     if (!playerSpyware) {
       alert('Você precisa de um software Spyware instalado para implantar keylogger e monitorar esta vítima!');
       return;
@@ -59,7 +60,7 @@ export const useAttacks = (storeOverride?: GameStoreState) => {
 
   const handleInstallMiner = () => {
     if (!activeConnection || !player) return;
-    const playerMiner = player.software.find(s => s.type === 'miner');
+    const playerMiner = bestSoftware(player.software, 'miner');
     if (!playerMiner) {
       alert('Você não possui um software minerador instalado!');
       return;

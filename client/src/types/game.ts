@@ -23,6 +23,10 @@ export interface SoftwareItem {
   isRunning?: boolean;
   hidden?: boolean;
   rarity?: ItemRarity;
+  /** Readable text of documents (clues, secrets). */
+  content?: string;
+  clueIp?: string;
+  loot?: { cash: number; btc?: number; rep?: number };
 }
 
 export interface HardwareSpec {
@@ -151,6 +155,7 @@ export interface VirtualServer {
   rewardCash?: number;
   rewardRep?: number;
   description?: string;
+  hidden?: boolean;
 }
 
 export type ProcessType =
@@ -431,6 +436,7 @@ export interface Player {
   connectedIp?: string;
   pendingHunts?: PendingHunt[];
   tracedIps?: Record<string, number>;
+  secretsFound?: string[];
   missionStars?: Record<string, number>;
   dailyStreak?: { dayKey: string; count: number };
   operationLog?: Record<string, number>;
