@@ -25,6 +25,7 @@ import { MissionEngine } from './MissionEngine.js';
 import { HUNT_KIND_TEXT, reconcileHunts } from './HuntEngine.js';
 import { traceHeatSeconds } from './traceHeat.js';
 import { applySecretDownload, ensureSecrets } from './secrets.js';
+import { reconcileAccess, reconcilePatch, recordBreach, touchAccess } from './WorldReaction.js';
 import { LOW_MID_TEMPLATES, buildTargetServer, ensureTargets, inBand, pickInBand, scanBand, withRange, type Band } from './targetCatalog.js';
 import { CryptoEngine } from './CryptoEngine.js';
 import { BlackMarketEngine } from './BlackMarketEngine.js';
@@ -95,6 +96,7 @@ export class GameWorld {
       this.startSpywareSnifferTicker();
       this.startHuntTicker();
       this.startContractBoardTicker();
+      this.startWorldReactionTicker();
     }
   }
 
@@ -607,6 +609,7 @@ export class GameWorld {
     ) || undefined;
 
     player.connectedIp = server.ip;
+    if (player.hackedIps.includes(server.ip)) touchAccess(player, server.ip);
     this.savePlayerState(userId);
     return { success: true, server, traceState };
   }
@@ -649,6 +652,47 @@ export class GameWorld {
     refresh();
     const timer = setInterval(refresh, 60_000);
     timer.unref?.();
+  }
+
+  /** Quest-related servers are never patched or rotated, so nobody gets stuck. */
+  private questIps(): Set<string> {
+    const ips = new Set<string>();
+    for (const c of this.storyEngine.getChapters()) for (const o of c.objectives) ips.add(o.targetIp);
+    for (const m of this.missionEngine.getAvailableMissions()) ips.add(m.targetIp);
+    for (const c of this.contractsAndRaidEngine.getContracts()) ips.add(c.targetIp);
+    for (const { player } of this.players.values()) for (const m of player.activeMissions || []) ips.add(m.targetIp);
+    return ips;
+  }
+
+  private startWorldReactionTicker() {
+    const timer = setInterval(() => {
+      try { this.runWorldReaction(); } catch (e) { console.error('[world]', e); }
+    }, 60_000);
+    timer.unref?.();
+  }
+
+  public runWorldReaction(now = Date.now()) {
+    const quest = this.questIps();
+    for (const server of this.servers.values()) {
+      const result = reconcilePatch(server, now, quest.has(server.ip));
+      if (!result) continue;
+      dbHelpers.saveServer(server);
+      if (result === 'patched') {
+        this.addNews(`${server.hostname} aplica patch de segurança após ondas de invasão (Hasher ${server.security.hasherLevel.toFixed(1)}).`, 'BREACH');
+      }
+    }
+    for (const { userId, player } of this.players.values()) {
+      const revoked = reconcileAccess(player, this.servers, quest, now);
+      if (!revoked.length) continue;
+      const names = revoked.map(ip => this.servers.get(ip)?.hostname || ip);
+      this.emitTo(userId, 'hunt_notice', {
+        tone: 'warning',
+        title: 'Senha trocada',
+        message: `Os administradores de ${names.join(', ')} rotacionaram as senhas. Seu acesso root se foi: quebre a senha de novo.`,
+      });
+      this.savePlayerState(userId);
+      this.emitTo(userId, 'player_update', { player });
+    }
   }
 
   private startHuntTicker() {
@@ -745,6 +789,8 @@ export class GameWorld {
       player.hackedIps.push(targetIp);
       player.reputation += server.rewardRep || 50;
     }
+    touchAccess(player, targetIp);
+    recordBreach(server);
 
     if (!server.logs) server.logs = [];
     server.logs.unshift({
