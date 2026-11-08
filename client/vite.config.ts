@@ -11,7 +11,8 @@ function configureProductionEndpoints(env: Record<string, string>): Plugin {
   return {
     name: 'configure-production-endpoints',
     transform(code, id) {
-      if (!id.includes('/src/stores/useGameStore.ts')) return null;
+      const rewritten = ['/src/stores/useGameStore.ts', '/src/components/views/ShopView.tsx'];
+      if (!rewritten.some(file => id.includes(file))) return null;
 
       const transformed = code
         .replaceAll("fetch('/api/", `fetch('${apiUrl}/api/`)

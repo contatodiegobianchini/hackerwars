@@ -1,76 +1,76 @@
-# ⚡ HACKER WARS // CYBER-OS (Inspirado no clássico Hacker Experience & Hacker Wars)
+# ⚡ HackerWars
 
-Um jogo de simulação e estratégia hacker fullstack em tempo real. Opere um sistema operacional virtual cyberpunk com janelas flutuantes, terminal interativo, simulação de rede com servidores NPC, economia de criptomoedas e mineração passiva, contratos da dark web, invasões a bancos e um sistema de rastreamento por logs.
+Jogo de simulação hacker multiplayer, em tempo real, que roda no navegador. Inspirado em *Hacker Experience*, *Uplink* e *Hacknet*: você quebra senhas, invade servidores, rouba arquivos, apaga seus rastros e foge da polícia, enquanto outros jogadores disputam o mesmo mundo.
 
----
-
-## 🎮 Principais Mecânicas do Jogo
-
-1. **Terminal Hacker Interativo (CLI)**
-   - Comandos: `scan`, `connect <ip>`, `crack`, `ls`, `download <file>`, `upload <file>`, `rm <file>`, `wipelog`, `ps`, `kill <pid>`, `hw`, `bank`, `crypto`, `ipscan`, `help`.
-   - Histórico de comandos (setas Cima/Baixo) e retorno em cores no estilo CRT/Matrix.
-
-2. **Loop de Invasão & Exploração (Hacking Loop)**
-   - **Varredura de Portas (NetScan)**: Descobre portas abertas e versões do Hasher/Firewall no alvo.
-   - **Quebra de Senhas (CrackMaster)**: Duração calculada dinamicamente baseada no `Hasher do Alvo / Cracker do Jogador / CPU Power`.
-   - **Acesso ROOT**: Permite baixar segredos industriais, transferir fundos bancários, apagar logs e instalar mineradores.
-
-3. **Gestão e Evolução de Softwares**
-   - Softwares categorizados: `.crc` (Crackers), `.hsh` (Hashers), `.fw` (Firewalls), `.scn` (Scanners), `.miner` (Mineradores de Cripto), `.dat` (Arquivos/Documentos sigilosos).
-   - **Pesquisa & Compilação**: Evolua o nível dos seus softwares (+0.1 por compilação) para superar as defesas de alvos de alta segurança.
-
-4. **Editor e Limpeza de Logs de Acesso (Crítico!)**
-   - Toda conexão, download e quebra de senha grava uma entrada com o IP de origem no servidor alvo.
-   - Servidores do governo (ex: FBI/FCB) aplicam multas e retaliação se você deixar seu IP nos logs por muito tempo!
-   - Execute **Limpeza de Logs** ou edite os registros para mascarar seu IP e escapar sem deixar rastros.
-
-5. **Economia Financeira & Fazenda de Mineração de Cripto**
-   - **Invasão a Bancos**: Descubra contas vulneráveis e transfira fundos para sua conta anônima.
-   - **Gráfico de Cotação em Tempo Real**: Compre e venda Bitcoin (BTC) aproveitando oscilações de mercado.
-   - **Mineração Distribuída**: Faça upload do seu minerador em servidores hackeados com processadores potentes para obter renda passiva contínua a cada 5 segundos!
-
-6. **Hardware & Gerenciador de Tarefas (Processos)**
-   - **CPU**: Acelera a velocidade de todas as tarefas de processamento e quebra de senhas.
-   - **RAM**: Define a quantidade máxima de processos executados em paralelo (2 a 14 tarefas simultâneas).
-   - **HDD**: Expande o armazenamento local de arquivos e ferramentas.
-   - **Rede / Fibra (ISP)**: Aumenta a taxa de transferência em downloads e uploads.
-
-7. **Quadro de Missões & Contratos Darknet**
-   - Roubo de teses confidenciais, infiltração em laboratórios de IA (Cyberdyne), limpeza de rastros e invasão ao Banco Central Global.
-   - Recompensas em Dinheiro ($ USD), Criptomoedas (BTC) e Pontos de Reputação (REP) para subir no Ranking Mundial.
-
-8. **Mapa Visual de Rede Radar & Navegador Web**
-   - Radar espacial interativo com nós descobertos e atalhos rápidos de conexão.
-   - Navegador com páginas navegáveis: `whois.net`, `hackertasks.onion`, `darknet.market`, portais bancários e alerta de procurados da polícia.
+**Para quem é:** quem curte jogos de hacking e estratégia (e quer jogar de graça, direto no navegador), e quem estuda um projeto fullstack em tempo real com React, Node, Socket.IO e Postgres, com regras de jogo testadas.
 
 ---
 
-## 🛠️ Stack Tecnológica
+## 🎮 O que dá para fazer no jogo
 
-- **Frontend**: React 18, Vite, TypeScript, TailwindCSS, Lucide Icons, Canvas API, Web Audio API (Efeitos sonoros retro sintetizados sem dependência externa), Zustand, Canvas Confetti.
-- **Backend**: Node.js, Express, Socket.io, TypeScript, Motor de Tarefas em Tempo Real (Tick engine), Simulação Econômica e Procedural de IPs.
+- **Invadir**: varra a rede, descubra alvos, quebre a senha (o tempo depende do Hasher do alvo, do seu cracker e da sua CPU) e ganhe acesso root.
+- **Explorar**: baixe arquivos, implante spyware, instale mineradores de cripto e execute o mega-assalto em bancos.
+- **Sumir**: cada ação deixa rastro e esquenta o rastreio da polícia. Apague os logs, use proxies ou alguém vai atrás de você (a senha é trocada, multa, batida policial ou sicários do cartel).
+- **Contratos**: um quadro que se renova (2 h de validade), com contratos de nível baixo a elite, um "golpe do dia" e estrelas de estilo por não ser rastreado e não deixar rastros.
+- **História e facções**: capítulos com escolhas que mudam a reputação com as facções, mais contratos do Syndicate.
+- **Segredos**: pistas escondidas em arquivos levam a servidores que nunca aparecem em varreduras, com cofres e crackers de prêmio.
+- **Um mundo que reage**: servidores muito invadidos recebem patches (ficam mais difíceis) e o acesso root expira se você some por muito tempo.
+- **Evolução**: hardware, softwares (pesquisa e compilação), clãs, ranking, mercado negro e cripto com preços que oscilam.
+- **CyberCoins (opcional)**: moeda premium vendida pelo Stripe que só compra velocidade (acelerar processos e Turbo 2x). Não compra dinheiro nem vantagem de combate.
 
----
+## 🛠️ Feito com
 
-## 🚀 Como Executar o Jogo
+- **Cliente**: React 18, Vite, TypeScript, Tailwind CSS, Zustand, Socket.IO client.
+- **Servidor**: Node.js, Express, Socket.IO, TypeScript, motor de tarefas em tempo real, Postgres (cliente próprio estilo PostgREST em `server/src/database/pg-client.ts`), Stripe Checkout para as CyberCoins.
+- **Testes**: `node:test` via `tsx` (regras de missões, rastreio, contratos, segredos, patches e CyberCoins).
 
-### 1. Iniciar em Modo de Desenvolvimento (Frontend + Backend juntos)
+## 🚀 Como rodar
+
+Pré-requisitos: Node.js 20 ou mais novo, npm e um Postgres (o jeito mais fácil é o Docker).
 
 ```bash
+# 1. dependências
+npm run install:all
+
+# 2. banco local (as tabelas são criadas no primeiro boot)
+docker run --name hackerwars-db -e POSTGRES_PASSWORD=dev -p 5432:5432 -d postgres:16
+
+# 3. variáveis de ambiente: copie os exemplos e ajuste JWT_SECRET e ADMIN_PASSWORD
+cp server/.env.example server/.env
+cp client/.env.example client/.env.local
+
+# 4. carregue as variáveis do servidor no shell e suba tudo (servidor + cliente)
+set -a; source server/.env; set +a
 npm run dev
 ```
 
-- O backend iniciará em `http://localhost:3001`
-- O frontend iniciará em `http://localhost:5173`
+- Cliente: <http://localhost:5173>. Servidor: <http://localhost:10000> (porta definida por `PORT`).
+- O servidor não lê arquivos `.env` sozinho, por isso o `source` no passo 4. Ele recusa subir sem `DATABASE_URL`, `JWT_SECRET` (32+ caracteres) e `ADMIN_PASSWORD` (20+ caracteres).
+- A loja de CyberCoins fica desligada sem `STRIPE_SECRET_KEY`. Para testar, use chaves de teste do Stripe (`sk_test_...`).
 
-Abra seu navegador em [http://localhost:5173](http://localhost:5173) para jogar!
-
-### 2. Build de Produção
+### Testes e build
 
 ```bash
-npm run build
-npm start
+npm test                  # testes do servidor e da lógica pura do cliente
+npm --prefix server run build
+npm --prefix client run build
 ```
+
+---
+
+## 🗺️ Planos
+
+O que já foi feito e o que vem a seguir está em [ROADMAP.md](ROADMAP.md).
+
+## 🔒 Segurança
+
+Veja [SECURITY.md](SECURITY.md). Nunca versione chaves: `.env*` está no `.gitignore` e os exemplos usam só valores de mentira.
+
+## 📄 Licença
+
+[MIT](LICENSE).
+
+---
 
 ### 3. Deploy na ShardCloud (processo único: API + Socket.IO + client)
 
