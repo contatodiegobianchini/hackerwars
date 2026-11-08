@@ -5,6 +5,7 @@ import { HEAT_LABELS, traceHeatSeconds } from './traceHeat.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { bestSoftware } from './bestSoftware.js';
+import { speedUpCost, spendCoins, turboActive } from './cyberCoins.js';
 
 export const getCompileCost = (version: number): number => {
   const steps = Math.max(0, Math.round((version - 1.0) * 10));
@@ -125,8 +126,10 @@ export class ProcessEngine {
       this.gameWorld.savePlayerState(playerId);
     }
 
-    const durationMs = this.calculateDuration(playerId, type, params);
     const now = Date.now();
+    const baseDuration = this.calculateDuration(playerId, type, params);
+    // Turbo (CyberCoins): processes started while it is active take half the time.
+    const durationMs = turboActive(player, now) ? Math.max(1000, Math.round(baseDuration / 2)) : baseDuration;
     const details = params.details && typeof params.details === 'object' ? { ...params.details } : {};
 
     // Keep important identifiers in both the normalized fields and details so completion
@@ -165,6 +168,22 @@ export class ProcessEngine {
     }
 
     return { success: true, process };
+  }
+
+  /** Spends CyberCoins to finish a running process right away. */
+  public speedUpProcess(processId: string, playerId: string): { success: boolean; message: string; cost?: number } {
+    const proc = this.processes.get(processId);
+    if (!proc || proc.playerId !== playerId || proc.status !== 'running') return { success: false, message: 'Processo não encontrado.' };
+    const now = Date.now();
+    const remaining = proc.startTime + proc.durationMs - now;
+    if (remaining <= 1000) return { success: true, message: 'O processo já está terminando.', cost: 0 };
+    const player = this.gameWorld.getPlayer(playerId);
+    const cost = speedUpCost(remaining);
+    if (!spendCoins(player, cost)) return { success: false, message: `Você precisa de ${cost} CyberCoins para acelerar.`, cost };
+    // The loop completes any process whose elapsed time passed its duration.
+    proc.startTime = now - proc.durationMs;
+    this.gameWorld.savePlayerState(playerId);
+    return { success: true, message: `Processo acelerado por ${cost} CyberCoins.`, cost };
   }
 
   public cancelProcess(processId: string, playerId: string): boolean {
@@ -242,7 +261,7 @@ export class ProcessEngine {
   }
 
   private startProcessLoop() {
-    setInterval(() => {
+    const loop = setInterval(() => {
       const now = Date.now();
       let hasUpdates = false;
       const playerIds = new Set<string>();
@@ -269,6 +288,7 @@ export class ProcessEngine {
 
       if (hasUpdates) playerIds.forEach(pId => this.broadcastProcesses(pId));
     }, 200);
+    loop.unref?.();
   }
 
   private handleProcessCompletion(proc: GameProcess) {

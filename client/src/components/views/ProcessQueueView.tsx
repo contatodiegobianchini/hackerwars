@@ -1,10 +1,11 @@
 import React from 'react';
 import { useGameStore } from '../../stores/useGameStore.js';
-import { Activity, Layers, Key, Download, Upload, Search, Sparkles, Trash2, Flame } from 'lucide-react';
+import { Activity, Layers, Key, Download, Upload, Search, Sparkles, Trash2, Flame, Zap } from 'lucide-react';
 import { ProcessType } from '../../types/game.js';
+import { coinBalance, speedUpCost } from '../../game/cyberCoins.js';
 
 export const ProcessQueueView: React.FC = () => {
-  const { player, processes, cancelProcess, setCurrentView } = useGameStore();
+  const { player, processes, cancelProcess, speedUpProcess, setCurrentView } = useGameStore();
 
   if (!player) return null;
 
@@ -95,12 +96,23 @@ export const ProcessQueueView: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="flex items-center gap-2">
+                  {remainingSec > 1 && (
+                    <button
+                      onClick={() => (coinBalance(player) >= speedUpCost(remainingSec * 1000) ? speedUpProcess(proc.id) : setCurrentView('shop'))}
+                      className="text-xs font-semibold bg-gray-900 text-white px-3 py-1 rounded-lg transition inline-flex items-center gap-1"
+                      title="Gaste CyberCoins para terminar este processo agora"
+                    >
+                      <Zap className="w-3 h-3" /> {speedUpCost(remainingSec * 1000)} CC
+                    </button>
+                  )}
                   <button
                     onClick={() => cancelProcess(proc.id)}
                     className="text-xs text-gray-600 hover:text-red-600 bg-gray-100 hover:bg-red-50 px-3 py-1 rounded-lg transition"
                   >
                     Cancelar
                   </button>
+                  </div>
                 </div>
 
                 {/* Progress Bar */}
