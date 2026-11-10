@@ -79,32 +79,46 @@ export class CryptoEngine {
     return this.coins[coinId.toLowerCase()];
   }
 
+  // Reference price each coin reverts to. Without mean reversion the walk compounds
+  // every 4s and drifts to astronomical values after a few hours of uptime.
+  private readonly basePrices: Record<string, number> = Object.fromEntries(
+    Object.values(this.coins).map(coin => [coin.id, coin.priceUsd]),
+  );
+
+  /** One market step: symmetric noise + pull toward the base price, hard-capped to [base/4, base*4]. */
+  public tickPrices() {
+    for (const coin of Object.values(this.coins)) {
+      const base = this.basePrices[coin.id];
+      const current = Number.isFinite(coin.priceUsd) && coin.priceUsd > 0 ? coin.priceUsd : base;
+
+      // Long-run spread around the base grows with volatility (BTC ~16%, PEPE ~58%).
+      const targetSpread = 0.1 + coin.volatility * 4;
+      const reversion = (coin.volatility ** 2) / (6 * targetSpread ** 2);
+      const noise = (Math.random() * 2 - 1) * coin.volatility;
+      const logPrice = Math.log(current) + reversion * Math.log(base / current) + noise;
+      const newPrice = Math.min(base * 4, Math.max(base / 4, Math.exp(logPrice)));
+
+      coin.priceUsd = coin.id === 'pepe'
+        ? Number(newPrice.toFixed(8))
+        : coin.id === 'doge'
+          ? Number(newPrice.toFixed(4))
+          : Number(newPrice.toFixed(2));
+
+      coin.priceHistory.push(coin.priceUsd);
+      if (coin.priceHistory.length > 30) {
+        coin.priceHistory.shift();
+      }
+
+      const startPrice = coin.priceHistory[0];
+      coin.change24h = Number((((coin.priceUsd - startPrice) / startPrice) * 100).toFixed(1));
+    }
+
+    this.totalNetworkHashrate = Number((800 + Math.random() * 80).toFixed(1));
+  }
+
   private startSimulation() {
     if (process.env.NODE_ENV === 'test') return;
     // Tick prices every 4 seconds
-    setInterval(() => {
-      for (const coin of Object.values(this.coins)) {
-        // Random percentage shift based on volatility
-        const rand = (Math.random() * 2 - 0.98);
-        const percentChange = rand * coin.volatility;
-        const newPrice = Math.max(0.000001, coin.priceUsd * (1 + percentChange));
-
-        coin.priceUsd = coin.id === 'pepe'
-          ? Number(newPrice.toFixed(8))
-          : coin.id === 'doge'
-            ? Number(newPrice.toFixed(4))
-            : Number(newPrice.toFixed(2));
-
-        coin.priceHistory.push(coin.priceUsd);
-        if (coin.priceHistory.length > 30) {
-          coin.priceHistory.shift();
-        }
-
-        const startPrice = coin.priceHistory[0];
-        coin.change24h = Number((((coin.priceUsd - startPrice) / startPrice) * 100).toFixed(1));
-      }
-
-      this.totalNetworkHashrate = Number((800 + Math.random() * 80).toFixed(1));
-    }, 4000).unref();
+    setInterval(() => this.tickPrices(), 4000).unref();
   }
 }
