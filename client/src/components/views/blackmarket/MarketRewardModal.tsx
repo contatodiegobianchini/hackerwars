@@ -21,7 +21,7 @@ export const MarketRewardModal: React.FC<MarketRewardModalProps> = ({ reward, on
   const badge = getRarityBadge(reward.rarity);
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none animate-fade-in">
+    <div className="fixed inset-0 bg-ink/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none animate-fade-in">
       <div className="bg-white text-gray-900 rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-gray-100 text-center relative space-y-4">
         <button
           onClick={onClearReward}

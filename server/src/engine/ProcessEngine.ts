@@ -1,7 +1,11 @@
 import { GameProcess, ProcessType, VirtualServer, SoftwareItem } from '../types/game.js';
 import { GameWorld } from './GameWorld.js';
+import type { MissionOperation } from './MissionEngine.js';
+import { HEAT_LABELS, traceHeatSeconds } from './traceHeat.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
+import { bestSoftware } from './bestSoftware.js';
+import { speedUpCost, spendCoins, turboActive } from './cyberCoins.js';
 
 export const getCompileCost = (version: number): number => {
   const steps = Math.max(0, Math.round((version - 1.0) * 10));
@@ -60,7 +64,7 @@ export class ProcessEngine {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
 
-      const cracker = player.software.find(s => s.type === 'cracker');
+      const cracker = bestSoftware(player.software, 'cracker');
       const crackerVer = cracker ? cracker.version : 1.0;
       const hasherVer = target.security.hasherLevel;
 
@@ -75,8 +79,8 @@ export class ProcessEngine {
     if (type === 'plant_spyware' && params.targetIp) {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
-      if (!target.security.isBreached) return { success: false, message: 'Você precisa obter acesso ROOT (Crack) antes de implantar o Spyware!' };
-      const spyware = player.software.find(s => s.type === 'spyware');
+      if (!player.hackedIps.includes(target.ip)) return { success: false, message: 'Você precisa obter acesso ROOT (Crack) antes de implantar o Spyware!' };
+      const spyware = bestSoftware(player.software, 'spyware');
       if (!spyware) return { success: false, message: 'Você não possui nenhum software Spyware instalado!' };
     }
 
@@ -84,16 +88,22 @@ export class ProcessEngine {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
       if (target.type !== 'bank') return { success: false, message: 'Este servidor não é uma instituição financeira bancária!' };
-      if (!target.security.isBreached) return { success: false, message: 'Você precisa obter acesso ROOT no servidor bancário antes de infiltrar a database central!' };
+      if (!player.hackedIps.includes(target.ip)) return { success: false, message: 'Você precisa obter acesso ROOT no servidor bancário antes de infiltrar a database central!' };
     }
 
     if (type === 'download' && params.targetIp) {
       const target = this.gameWorld.getServer(params.targetIp);
       if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
-      if (!target.security.isBreached) return { success: false, message: 'Acesso negado: quebre a senha do servidor antes de baixar arquivos.' };
+      if (!player.hackedIps.includes(target.ip)) return { success: false, message: 'Acesso negado: quebre a senha do servidor antes de baixar arquivos.' };
       if (params.targetFileId && !target.files.some(f => f.id === params.targetFileId)) {
         return { success: false, message: 'Arquivo alvo não encontrado no servidor.' };
       }
+    }
+
+    if ((type === 'wipelog' || type === 'editlog') && params.targetIp) {
+      const target = this.gameWorld.getServer(params.targetIp);
+      if (!target) return { success: false, message: 'Servidor alvo não encontrado.' };
+      if (!player.hackedIps.includes(target.ip)) return { success: false, message: 'Acesso negado: é preciso acesso ROOT (Crack) para manipular os logs deste servidor.' };
     }
 
     if (type === 'compile' && params.softwareId) {
@@ -116,8 +126,10 @@ export class ProcessEngine {
       this.gameWorld.savePlayerState(playerId);
     }
 
-    const durationMs = this.calculateDuration(playerId, type, params);
     const now = Date.now();
+    const baseDuration = this.calculateDuration(playerId, type, params);
+    // Turbo (CyberCoins): processes started while it is active take half the time.
+    const durationMs = turboActive(player, now) ? Math.max(1000, Math.round(baseDuration / 2)) : baseDuration;
     const details = params.details && typeof params.details === 'object' ? { ...params.details } : {};
 
     // Keep important identifiers in both the normalized fields and details so completion
@@ -142,7 +154,36 @@ export class ProcessEngine {
     this.processes.set(process.id, process);
     this.broadcastProcesses(playerId);
 
+    // Noise: actions on a monitored target bring the police trace closer.
+    if (params.targetIp) {
+      const target = this.gameWorld.getServer(params.targetIp);
+      const sizeMb = type === 'download' && params.targetFileId
+        ? target?.files?.find(f => f.id === params.targetFileId)?.sizeMb || 0
+        : 0;
+      const heat = traceHeatSeconds(type, sizeMb);
+      if (heat > 0) {
+        const label = HEAT_LABELS[type] || type;
+        this.gameWorld.proxyTraceEngine.addHeat(playerId, params.targetIp, heat, label);
+      }
+    }
+
     return { success: true, process };
+  }
+
+  /** Spends CyberCoins to finish a running process right away. */
+  public speedUpProcess(processId: string, playerId: string): { success: boolean; message: string; cost?: number } {
+    const proc = this.processes.get(processId);
+    if (!proc || proc.playerId !== playerId || proc.status !== 'running') return { success: false, message: 'Processo não encontrado.' };
+    const now = Date.now();
+    const remaining = proc.startTime + proc.durationMs - now;
+    if (remaining <= 1000) return { success: true, message: 'O processo já está terminando.', cost: 0 };
+    const player = this.gameWorld.getPlayer(playerId);
+    const cost = speedUpCost(remaining);
+    if (!spendCoins(player, cost)) return { success: false, message: `Você precisa de ${cost} CyberCoins para acelerar.`, cost };
+    // The loop completes any process whose elapsed time passed its duration.
+    proc.startTime = now - proc.durationMs;
+    this.gameWorld.savePlayerState(playerId);
+    return { success: true, message: `Processo acelerado por ${cost} CyberCoins.`, cost };
   }
 
   public cancelProcess(processId: string, playerId: string): boolean {
@@ -165,7 +206,7 @@ export class ProcessEngine {
       case 'crack': {
         const target = params.targetIp ? this.gameWorld.getServer(params.targetIp) : null;
         const targetDefense = target ? target.security.hasherLevel : 1.0;
-        const playerCracker = player.software.find(s => s.type === 'cracker');
+        const playerCracker = bestSoftware(player.software, 'cracker');
         const crackerVersion = playerCracker ? playerCracker.version : 1.0;
         const computePower = cpuSpeed + gpuTflops * 0.15;
         let timeSec = ((targetDefense / crackerVersion) * 6.0) / (computePower / 2);
@@ -173,7 +214,7 @@ export class ProcessEngine {
         return Math.max(2000, Math.round(timeSec * 1000));
       }
       case 'scan': {
-        const playerScanner = player.software.find(s => s.type === 'portscan');
+        const playerScanner = bestSoftware(player.software, 'portscan');
         const scanVer = playerScanner ? playerScanner.version : 1.0;
         const timeSec = (4.0 / scanVer) / (netSpeed / 10);
         return Math.max(1500, Math.round(timeSec * 1000));
@@ -201,14 +242,14 @@ export class ProcessEngine {
       }
       case 'wipelog': return Math.max(2000, Math.round(4000 / (cpuSpeed / 2)));
       case 'antivirus_scan': {
-        const av = player.software.find(s => s.type === 'antivirus');
+        const av = bestSoftware(player.software, 'antivirus');
         const avVer = av ? av.version : 1.0;
         return Math.max(2500, Math.round((6000 / avVer) / (cpuSpeed / 2)));
       }
       case 'ddos': {
         const target = params.targetIp ? this.gameWorld.getServer(params.targetIp) : null;
         const targetNet = target ? target.hardware.networkMbps : 100;
-        const botnet = player.software.find(s => s.type === 'ddos');
+        const botnet = bestSoftware(player.software, 'ddos');
         const botnetPower = botnet ? botnet.version * netSpeed : netSpeed;
         const timeSec = Math.max(4, Math.round((targetNet / botnetPower) * 8));
         return Math.max(3500, timeSec * 1000);
@@ -220,7 +261,7 @@ export class ProcessEngine {
   }
 
   private startProcessLoop() {
-    setInterval(() => {
+    const loop = setInterval(() => {
       const now = Date.now();
       let hasUpdates = false;
       const playerIds = new Set<string>();
@@ -247,16 +288,19 @@ export class ProcessEngine {
 
       if (hasUpdates) playerIds.forEach(pId => this.broadcastProcesses(pId));
     }, 200);
+    loop.unref?.();
   }
 
   private handleProcessCompletion(proc: GameProcess) {
     let resultMessage = '';
     const userId = proc.playerId;
+    let completedOp: { op: MissionOperation; fileName?: string } | null = null;
 
     switch (proc.type) {
       case 'crack':
         if (proc.targetIp) {
           const ok = this.gameWorld.onPasswordCracked(userId, proc.targetIp);
+          if (ok) completedOp = { op: 'crack' };
           resultMessage = ok
             ? `Acesso ROOT obtido com sucesso em ${proc.targetIp}!`
             : `Falha ao conceder acesso ROOT em ${proc.targetIp}. O servidor não está mais disponível.`;
@@ -271,6 +315,7 @@ export class ProcessEngine {
       case 'download':
         if (proc.targetIp && proc.targetFileId) {
           const res = this.gameWorld.downloadFile(userId, proc.targetIp, proc.targetFileId);
+          if (res.success) completedOp = { op: 'download', fileName: res.file?.name };
           resultMessage = res.success ? `Download concluído: ${res.file?.name}` : (res.message || 'Falha no download');
         }
         break;
@@ -294,13 +339,18 @@ export class ProcessEngine {
         break;
       case 'wipelog':
         if (proc.targetIp) {
-          this.gameWorld.wipeRemoteLogs(proc.targetIp);
+          const res = this.gameWorld.wipeRemoteLogs(proc.targetIp);
+          if (res.success) {
+            completedOp = { op: 'wipe_logs' };
+            this.gameWorld.runHuntsFor(userId, this.gameWorld.getPlayer(userId));
+          }
           resultMessage = `Todos os logs em ${proc.targetIp} foram apagados.`;
         }
         break;
       case 'ddos':
         if (proc.targetIp) {
           const res = this.gameWorld.ddosAttack(userId, proc.targetIp);
+          if (res.success) completedOp = { op: 'ddos' };
           resultMessage = res.message;
         }
         break;
@@ -314,18 +364,31 @@ export class ProcessEngine {
       case 'plant_spyware':
         if (proc.targetIp) {
           const res = this.gameWorld.plantSpyware(userId, proc.targetIp);
+          if (res.success) completedOp = { op: 'spyware' };
           resultMessage = res.message;
         }
         break;
       case 'mass_bank_heist':
         if (proc.targetIp) {
           const res = this.gameWorld.executeMassBankHeist(userId, proc.targetIp);
+          if (res.success) completedOp = { op: 'bank_heist' };
           resultMessage = res.message;
         }
         break;
     }
 
     const player = this.gameWorld.getPlayer(userId);
+
+    // Record the operation only when it actually succeeded, so missions and the
+    // story campaign reflect what this player did (not shared server state).
+    if (completedOp && proc.targetIp) {
+      this.gameWorld.missionEngine.recordOperation(player, completedOp.op, proc.targetIp, completedOp.fileName);
+      this.gameWorld.savePlayerState(userId);
+      if (this.io) {
+        this.io.to(userId).emit('story_chapters_update', { storyChapters: this.gameWorld.getStoryChapters(userId), player: this.gameWorld.getPlayer(userId) });
+      }
+    }
+
     const targetServer = proc.targetIp ? this.gameWorld.getServer(proc.targetIp) : undefined;
     const targetHostname = targetServer ? targetServer.hostname : (proc.targetIp || 'Servidor Remoto');
 

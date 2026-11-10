@@ -194,7 +194,9 @@ export const SoftwareListView: React.FC = () => {
                   </div>
                 </div>
 
-                <p className="text-xs text-gray-600 mt-3 leading-relaxed">{info.desc}</p>
+                {soft.content
+                  ? <p className="hw-note mt-3">{soft.content}</p>
+                  : <p className="text-xs text-gray-600 mt-3 leading-relaxed">{info.desc}</p>}
               </div>
 
               {/* Actions: Research & Delete */}

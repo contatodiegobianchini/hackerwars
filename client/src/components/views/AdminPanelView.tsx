@@ -511,7 +511,7 @@ export const AdminPanelView: React.FC = () => {
 
       {/* MODAL 1: EDIT USER DATA */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-gray-200 space-y-5">
             <div className="flex items-center justify-between">
               <div>
@@ -595,7 +595,7 @@ export const AdminPanelView: React.FC = () => {
 
       {/* MODAL 2: PASSWORD RESET */}
       {pwdResetUser && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-gray-200 space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -645,7 +645,7 @@ export const AdminPanelView: React.FC = () => {
 
       {/* MODAL 3: BAN CONFIRMATION */}
       {banUser && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-gray-200 space-y-4">
             <div className="flex items-center justify-between">
               <div>

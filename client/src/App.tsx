@@ -6,7 +6,6 @@ import { ToastNotifications } from './components/desktop/ToastNotifications.js';
 import { TaskProgressPopup } from './components/common/TaskProgressPopup.js';
 import { AuthModal } from './components/auth/AuthModal.js';
 import { HackerTerminalDrawer } from './components/terminal/HackerTerminalDrawer.js';
-import { Shield } from 'lucide-react';
 
 // Views
 import { MyServerView } from './components/views/MyServerView.js';
@@ -14,7 +13,7 @@ import { TargetServerView } from './components/views/TargetServerView.js';
 import { SoftwareListView } from './components/views/SoftwareListView.js';
 import { ProcessQueueView } from './components/views/ProcessQueueView.js';
 import { KnownServersView } from './components/views/KnownServersView.js';
-import { MissionsView } from './components/views/MissionsView.js';
+import { OperationsBoard } from './components/views/OperationsBoard.js';
 import { BlackMarketView } from './components/views/BlackMarketView.js';
 import { BankingView } from './components/views/BankingView.js';
 import { CryptoView } from './components/views/CryptoView.js';
@@ -28,33 +27,66 @@ import { AntivirusDefenseView } from './components/views/AntivirusDefenseView.js
 import { ClansView } from './components/views/ClansView.js';
 import { DatacenterView } from './components/views/DatacenterView.js';
 import { CampaignView } from './components/views/CampaignView.js';
-import { DarkChatView } from './components/views/DarkChatView.js';
 import { CartelLockdownOverlay } from './components/cartel/CartelLockdownOverlay.js';
 import { PoliceRaidAlert } from './components/common/PoliceRaidAlert.js';
 import { AdminPanelView } from './components/views/AdminPanelView.js';
 
 import { MobileBottomNav } from './components/layout/MobileBottomNav.js';
+import { ZoneTabs } from './components/layout/ZoneTabs.js';
+import { ChatDrawer } from './components/layout/ChatDrawer.js';
+import { TraceBar } from './components/layout/TraceBar.js';
+import { HomeView } from './components/views/HomeView.js';
+import { ShopView } from './components/views/ShopView.js';
 
 export const App: React.FC = () => {
   const {
     currentUser,
     isAuthLoading,
     checkAuth,
-    currentView
+    currentView,
+    toggleTerminal,
+    confirmCoinPurchase,
+    setCurrentView,
   } = useGameStore();
 
   useEffect(() => {
     checkAuth();
   }, []);
 
+  // Backtick opens and closes the terminal, like a game console. It is ignored
+  // while typing in any other field.
+  useEffect(() => {
+    if (!currentUser) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '`' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      const editable = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+      if (editable && el?.id !== 'terminal-command') return;
+      e.preventDefault();
+      toggleTerminal();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [currentUser, toggleTerminal]);
+
+  // Back from Stripe Checkout: confirm the payment so the coins show up right away.
+  useEffect(() => {
+    if (!currentUser) return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('cc');
+    if (!status) return;
+    const sessionId = params.get('session_id');
+    window.history.replaceState({}, '', window.location.pathname);
+    setCurrentView('shop');
+    if (status === 'success' && sessionId) confirmCoinPurchase(sessionId);
+  }, [currentUser]);
+
   if (isAuthLoading) {
     return (
-      <div className="h-screen w-screen bg-[#0a0a0a] flex items-center justify-center text-white">
-        <div className="flex flex-col items-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-black shadow-lg animate-pulse">
-            <Shield className="w-6 h-6 fill-black text-black" />
-          </div>
-          <span className="text-xs font-mono text-gray-400">Iniciando protocolo seguro...</span>
+      <div className="h-screen w-screen flex items-center justify-center" style={{ background: 'var(--madrugada)' }}>
+        <div className="flex flex-col items-center gap-3">
+          <span className="hw-brand__name text-4xl">Hacker<b>Wars</b></span>
+          <span className="text-sm text-gray-500 cyber-live">Conectando à rede…</span>
         </div>
       </div>
     );
@@ -69,22 +101,16 @@ export const App: React.FC = () => {
     );
   }
 
-  const viewZones: Record<string, string> = {
-    known_servers: 'network', target_server: 'network', missions: 'operations', campaign: 'operations', processes: 'operations',
-    bank: 'economy', crypto: 'economy', black_market: 'economy', clans: 'social', dark_chat: 'social', leaderboard: 'social',
-    antivirus: 'security', logs: 'security', software: 'infrastructure', hardware: 'infrastructure', datacenter: 'infrastructure'
-  };
-
   const renderCurrentView = () => {
     switch (currentView) {
-      case 'my_server': return <MyServerView />;
+      case 'my_server': return <HomeView />;
+      case 'machine': return <MyServerView />;
       case 'target_server': return <TargetServerView />;
       case 'software': return <SoftwareListView />;
       case 'processes': return <ProcessQueueView />;
       case 'known_servers': return <KnownServersView />;
-      case 'missions': return <MissionsView />;
+      case 'missions': return <OperationsBoard />;
       case 'campaign': return <CampaignView />;
-      case 'dark_chat': return <DarkChatView />;
       case 'black_market': return <BlackMarketView />;
       case 'crypto': return <CryptoView />;
       case 'datacenter': return <DatacenterView />;
@@ -95,26 +121,30 @@ export const App: React.FC = () => {
       case 'logs': return <MyLogsView />;
       case 'leaderboard': return <LeaderboardView />;
       case 'tutorial': return <TutorialView />;
+      case 'shop': return <ShopView />;
       case 'admin_panel': return <AdminPanelView />;
-      default: return <MyServerView />;
+      default: return <HomeView />;
     }
   };
 
   return (
-    <div className="app-shell h-screen w-screen text-slate-200 flex flex-col overflow-hidden font-sans select-none">
+    <div className="app-shell h-screen w-screen flex flex-col overflow-hidden">
       <Header />
+      <TraceBar />
 
       <div className="flex-1 flex overflow-hidden">
         <Sidebar />
 
-        <main data-view={currentView} data-zone={viewZones[currentView] || 'core'} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
-          <div className="max-w-6xl mx-auto pb-24 md:pb-16">
+        <main data-view={currentView} data-zone="core" className="hw-main">
+          <div className="hw-main__inner">
+            <ZoneTabs />
             {renderCurrentView()}
           </div>
         </main>
       </div>
 
       <MobileBottomNav />
+      <ChatDrawer />
       <ToastNotifications />
       <TaskProgressPopup />
       <HackerTerminalDrawer />

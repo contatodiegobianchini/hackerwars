@@ -53,7 +53,8 @@ export class ProxyTraceEngine {
     };
 
     const timer = setInterval(() => {
-      secondsRemaining -= 1;
+      // Read from the shared state: addHeat() may have shortened the clock.
+      secondsRemaining = state.secondsRemaining - 1;
       const progress = Math.min(100, Math.round(((totalSeconds - secondsRemaining) / totalSeconds) * 100));
 
       state.secondsRemaining = Math.max(0, secondsRemaining);
@@ -82,6 +83,22 @@ export class ProxyTraceEngine {
     }
 
     return state;
+  }
+
+  /**
+   * Speeds up the trace running against this player on this target. Returns the
+   * seconds actually removed (0 when no trace is running there).
+   */
+  public addHeat(userId: string, targetIp: string, seconds: number, label: string): number {
+    const active = this.activeTraces.get(userId);
+    if (!active || active.state.targetIp !== targetIp || seconds <= 0) return 0;
+    const before = active.state.secondsRemaining;
+    active.state.secondsRemaining = Math.max(1, before - seconds);
+    const removed = before - active.state.secondsRemaining;
+    active.state.progressPercent = Math.min(100, Math.round(((active.state.totalSeconds - active.state.secondsRemaining) / active.state.totalSeconds) * 100));
+    active.state.lastHeat = { label, seconds: removed, at: Date.now() };
+    if (this.io) this.io.emit('police_trace_tick', { userId, state: { ...active.state } });
+    return removed;
   }
 
   public stopTrace(userId: string) {

@@ -13,6 +13,7 @@ import {
   Power,
   RefreshCw
 } from 'lucide-react';
+import { bestSoftware } from '../../game/bestSoftware.js';
 
 export const AntivirusDefenseView: React.FC = () => {
   const {
@@ -37,14 +38,14 @@ export const AntivirusDefenseView: React.FC = () => {
 
   if (!player) return null;
 
-  const avSoftware = player.software.find(s => s.type === 'antivirus') || {
+  const avSoftware = bestSoftware(player.software, 'antivirus') || {
     id: 'soft-av-1',
     name: 'AegisScanner Pro',
     version: 1.0,
     sizeMb: 18,
   };
 
-  const fwSoftware = player.software.find(s => s.type === 'firewall') || {
+  const fwSoftware = bestSoftware(player.software, 'firewall') || {
     id: 'soft-fw-1',
     name: 'AegisWall',
     version: 1.0,

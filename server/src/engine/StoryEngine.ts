@@ -404,7 +404,7 @@ export class StoryEngine {
       title: 'Capítulo 6: O Grande Golpe no MegaBank Global',
       faction: 'cartel',
       factionName: 'Assalto Central',
-      briefing: 'O MegaBank Global (64.233.160.1) centraliza reservas internacionais. Invada o banco, quebre o cofre e execute um mega-assalto à database.',
+      briefing: 'O MegaBank Global (12.189.44.10) centraliza reservas internacionais. Invada o banco, quebre o cofre e execute um mega-assalto à database.',
       dialogue: [
         {
           speaker: 'Don Alejandro',
@@ -413,21 +413,21 @@ export class StoryEngine {
           text: 'Chegou a hora de fazer história. Quando o alarme do banco soar, o FBI vai vir com tudo. Esteja pronto!'
         },
       ],
-      targetIp: '64.233.160.1',
+      targetIp: '12.189.44.10',
       targetHostname: 'megabank.global',
       objectives: [
         {
           id: 'c6-obj-1',
           text: 'Quebrar Hasher v3.5 do MegaBank Global',
           type: 'crack',
-          targetIp: '64.233.160.1',
+          targetIp: '12.189.44.10',
           completed: false,
         },
         {
           id: 'c6-obj-2',
           text: 'Desviar fundos ou executar o Mega-Assalto à Database Central',
           type: 'bank_heist',
-          targetIp: '64.233.160.1',
+          targetIp: '12.189.44.10',
           completed: false,
         }
       ],
@@ -633,7 +633,7 @@ export class StoryEngine {
       title: 'Capítulo 10: O Confronto Final & A Singularidade (NASA Quantum)',
       faction: 'lone_wolf',
       factionName: 'A Singularidade Cósmica',
-      briefing: 'O Supercomputador Quântico da NASA (198.51.100.99) atingiu a senciência de Inteligência Artificial. Suas ações determinarão o destino de toda a civilização humana.',
+      briefing: 'O Supercomputador Quântico da NASA (198.118.192.50) atingiu a senciência de Inteligência Artificial. Suas ações determinarão o destino de toda a civilização humana.',
       dialogue: [
         {
           speaker: 'IA Ômega-Prime',
@@ -769,36 +769,50 @@ export class StoryEngine {
 
   public isObjectiveCompleted(obj: StoryObjective, player: Player, servers: Map<string, VirtualServer>): boolean {
     const server = servers.get(obj.targetIp);
-    const isBreached = player.hackedIps.includes(obj.targetIp) || (server?.security?.isBreached === true);
+    // Root access is per player: another player's breach of a shared server must not count.
+    const isBreached = (player.hackedIps || []).includes(obj.targetIp);
+    const didOperation = (op: string) => !!player.operationLog?.[`${op}:${obj.targetIp}`];
 
     switch (obj.type) {
       case 'crack':
         return isBreached;
 
-      case 'download':
+      case 'download': {
         if (!obj.targetFileName) return isBreached;
-        return player.software.some(s =>
-          s.name.toLowerCase() === obj.targetFileName?.toLowerCase() ||
-          s.name.toLowerCase().includes(obj.targetFileName?.toLowerCase() || '')
-        );
+        const wanted = obj.targetFileName.toLowerCase();
+        return (player.software || []).some(s => s.name?.toLowerCase() === wanted);
+      }
 
       case 'spyware':
-        return server?.activeSpyware?.some(sp => sp.ownerId === player.id) || false;
+        return server?.activeSpyware?.some(sp => sp.ownerId === player.id) || didOperation('spyware');
 
-      case 'wipe_logs':
-        if (!server) return false;
-        const hasLogs = server.logs?.some(l => l.ip === player.ip || (player.username && l.action.includes(player.username)));
-        return isBreached && !hasLogs;
+      case 'wipe_logs': {
+        if (!server || !isBreached) return false;
+        const hasLogs = server.logs?.some(l => l.ip === player.ip || (!!player.username && l.action?.includes(player.username)));
+        return !hasLogs;
+      }
 
       case 'ddos':
-        return server?.isOnline === false;
+        // A DDoS only keeps the server offline for ~60s and may come from anyone;
+        // require that this player actually completed a successful attack.
+        return didOperation('ddos');
 
       case 'bank_heist':
-        return isBreached;
+        return isBreached && didOperation('bank_heist');
 
       default:
         return isBreached;
     }
+  }
+
+  private isChapterUnlocked(chapter: StoryChapter, completedIds: string[]): boolean {
+    return chapter.chapterNumber === 1 || completedIds.includes(`chap-${chapter.chapterNumber - 1}`);
+  }
+
+  /** Replaces hard-coded "Hasher vX" mentions with the target's real hasher level. */
+  private withLiveHasher(text: string, hasher: number | undefined): string {
+    if (hasher === undefined || !text) return text;
+    return text.replace(/Hasher(\s+(?:Quântico|corporativo))?\s+v\d+(?:\.\d+)?/gi, (_m, kind) => `Hasher${kind || ''} v${Number(hasher).toFixed(1)}`);
   }
 
   public validateChapterObjectives(
@@ -818,16 +832,21 @@ export class StoryEngine {
     const completedIds = player?.completedStoryChapters || [];
     return this.chapters.map(chap => {
       const isCompleted = completedIds.includes(chap.id);
-      const isUnlocked = chap.chapterNumber === 1 || completedIds.includes(`chap-${chap.chapterNumber - 1}`);
+      const isUnlocked = this.isChapterUnlocked(chap, completedIds);
+      const hasher = chap.targetIp ? servers?.get(chap.targetIp)?.security?.hasherLevel : undefined;
 
       // Evaluate objectives if player and servers map are provided
       const objectives = chap.objectives.map(obj => ({
         ...obj,
-        completed: (player && servers) ? this.isObjectiveCompleted(obj, player, servers) : false,
+        text: this.withLiveHasher(obj.text, servers?.get(obj.targetIp)?.security?.hasherLevel),
+        completed: (player && servers) ? (isCompleted || this.isObjectiveCompleted(obj, player, servers)) : false,
       }));
 
       return {
         ...chap,
+        targetHostname: (chap.targetIp && servers?.get(chap.targetIp)?.hostname) || chap.targetHostname,
+        briefing: this.withLiveHasher(chap.briefing, hasher),
+        dialogue: chap.dialogue.map(d => ({ ...d, text: this.withLiveHasher(d.text, hasher) })),
         objectives,
         isCompleted,
         unlocked: isUnlocked,
@@ -844,8 +863,13 @@ export class StoryEngine {
     const chapter = this.chapters.find(c => c.id === chapterId);
     if (!chapter) return { success: false, message: 'Capítulo não encontrado.' };
 
-    if (player.completedStoryChapters.includes(chapterId)) {
+    const completedIds = player.completedStoryChapters || [];
+    if (completedIds.includes(chapterId)) {
       return { success: false, message: 'Este capítulo da história já foi concluído anteriormente.' };
+    }
+
+    if (!this.isChapterUnlocked(chapter, completedIds)) {
+      return { success: false, message: 'Este capítulo ainda está bloqueado. Conclua o capítulo anterior primeiro.' };
     }
 
     // Strict validation of all chapter objectives

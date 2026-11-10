@@ -81,10 +81,10 @@ export class DarkChatEngine {
             sender: 'Don Alejandro',
             role: 'Chefe do Cartel',
             avatar: '💀',
-            text: 'Buenas tardes. O MegaBank Global (64.233.160.1) e as contas corporativas da Pear Inc (17.253.144.10) guardam centenas de milhares de dólares. Implante seu Spyware e drene os fundos!',
+            text: 'Buenas tardes. O IronClad Banking (64.233.160.1) e as contas corporativas da Pear Inc (17.253.144.10) guardam centenas de milhares de dólares. Implante seu Spyware e drene os fundos!',
             timestamp: Date.now() - 2500000,
             actionButton: {
-              label: '🏦 Conectar ao MegaBank (64.233.160.1)',
+              label: '🏦 Conectar ao IronClad Banking (64.233.160.1)',
               actionType: 'connect',
               targetIp: '64.233.160.1',
             }

@@ -50,7 +50,7 @@ export const AuthModal: React.FC = () => {
           <div className="flex items-start justify-between mb-7">
             <div>
               <div className="flex items-center gap-2 text-[10px] font-mono text-emerald-700 font-bold tracking-[0.16em] mb-2"><span className="w-1.5 h-1.5 bg-emerald-600 inline-block" /> SISTEMA ONLINE</div>
-              <h1 className="text-2xl font-black tracking-[-0.06em] text-gray-950 uppercase leading-none">Hacker<br />Wars</h1>
+              <h1 className="hw-brand__name !text-5xl">Hacker<b>Wars</b></h1>
               <p className="text-xs text-gray-500 mt-2">Acesso à rede clandestina.</p>
             </div>
             <div className="w-11 h-11 bg-[#132218] flex items-center justify-center text-emerald-300 border border-emerald-700/50">
@@ -143,7 +143,7 @@ export const AuthModal: React.FC = () => {
             type="button"
             onClick={handleDemoLogin}
             disabled={loading}
-            className="text-xs text-gray-500 hover:text-black font-medium transition flex items-center justify-center space-x-1.5 mx-auto"
+            className="text-xs text-gray-500 hover:text-gray-900 font-medium transition flex items-center justify-center space-x-1.5 mx-auto"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
             <span>Entrar rápido com conta de teste (zero_cool)</span>

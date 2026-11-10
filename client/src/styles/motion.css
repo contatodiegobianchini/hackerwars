@@ -1,4 +1,7 @@
-@keyframes cyber-sweep { from { transform: translateX(-110%); } to { transform: translateX(220%); } }
 @keyframes cyber-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+@keyframes drawer-in-right { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes drawer-in-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .cyber-live { animation: cyber-pulse 1.8s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; scroll-behavior: auto !important; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

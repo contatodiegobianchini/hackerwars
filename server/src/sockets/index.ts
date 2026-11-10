@@ -35,11 +35,19 @@ export function setupSocketListeners(
     if (!currentUserId) return socket.disconnect(true);
 
     const sendInitState = (userId: string) => {
+      // A fresh session has no open connection: clear a stale one left by a restart.
+      const sessionPlayer = gameWorld.getPlayer(userId);
+      if (sessionPlayer.connectedIp) { delete sessionPlayer.connectedIp; gameWorld.savePlayerState(userId); }
+      // Existing contracts whose objective is already met (e.g. file downloaded
+      // before accepting) show up as ready to deliver.
+      if (gameWorld.missionEngine.syncProgress(gameWorld.getPlayer(userId), ip => gameWorld.getServer(ip))) {
+        gameWorld.savePlayerState(userId);
+      }
       socket.emit('init_state', {
         player: gameWorld.getPlayer(userId),
         servers: gameWorld.getDiscoveredServers(userId),
         allServers: gameWorld.getAllServers(),
-        missions: gameWorld.missionEngine.getAvailableMissions(),
+        missions: gameWorld.missionEngine.getPlayerMissions(gameWorld.getPlayer(userId)),
         cryptoState: gameWorld.cryptoEngine.getState(),
         crates: gameWorld.blackMarketEngine.getCrates(),
         clans: gameWorld.clanEngine.getClans(),
@@ -65,6 +73,13 @@ export function setupSocketListeners(
     });
 
     sendInitState(currentUserId);
+
+    // Closing the game counts as leaving the target: the trace stops and any
+    // tracks left behind start their countdown.
+    socket.on('disconnect', () => {
+      const room = (socket.nsp as any)?.adapter?.rooms?.get(currentUserId);
+      if (!room || room.size === 0) gameWorld.disconnectServer(currentUserId);
+    });
 
     registerHardwareHandlers(socket, gameWorld, currentUserId);
     registerDefenseHandlers(socket, gameWorld, currentUserId);

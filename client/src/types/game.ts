@@ -23,6 +23,10 @@ export interface SoftwareItem {
   isRunning?: boolean;
   hidden?: boolean;
   rarity?: ItemRarity;
+  /** Readable text of documents (clues, secrets). */
+  content?: string;
+  clueIp?: string;
+  loot?: { cash: number; btc?: number; rep?: number };
 }
 
 export interface HardwareSpec {
@@ -132,6 +136,9 @@ export interface VirtualServer {
     rootPassword?: string;
     openPorts: PortInfo[];
   };
+  /** Patches stacked by the admins after many breaches (each adds +0.5 Hasher). */
+  patchLevel?: number;
+  baseHasher?: number;
   files: SoftwareItem[];
   bankAccounts?: BankAccount[];
   logs: LogEntry[];
@@ -151,6 +158,7 @@ export interface VirtualServer {
   rewardCash?: number;
   rewardRep?: number;
   description?: string;
+  hidden?: boolean;
 }
 
 export type ProcessType =
@@ -210,6 +218,10 @@ export interface Mission {
   difficulty: MissionDifficulty;
   status: MissionStatus;
   timeLimitMs?: number;
+  acceptedAt?: number;
+  expiresAt?: number;
+  isDaily?: boolean;
+  dayKey?: string;
 }
 
 export interface CryptoCoin {
@@ -254,6 +266,17 @@ export interface ProxyHop {
   isClean: boolean;
 }
 
+export type HuntKind = 'reset' | 'fine' | 'raid' | 'cartel';
+export interface PendingHunt {
+  id: string;
+  ip: string;
+  hostname: string;
+  serverType: ServerType;
+  kind: HuntKind;
+  createdAt: number;
+  dueAt: number;
+}
+
 export interface PoliceTraceState {
   isActive: boolean;
   targetIp: string;
@@ -263,6 +286,7 @@ export interface PoliceTraceState {
   secondsRemaining: number;
   hops: ProxyHop[];
   dangerLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  lastHeat?: { label: string; seconds: number; at: number };
 }
 
 // --- Clans & Territory Wars ---
@@ -409,6 +433,22 @@ export interface Player {
   software: SoftwareItem[];
   logs: LogEntry[];
   activeMissions: Mission[];
+  missionProgress?: Record<string, boolean>;
+  completedMissionIds?: string[];
+  completedContractIds?: string[];
+  connectedIp?: string;
+  pendingHunts?: PendingHunt[];
+  tracedIps?: Record<string, number>;
+  secretsFound?: string[];
+  /** Last time each root access was used (ms), for password rotation. */
+  accessAt?: Record<string, number>;
+  /** Premium currency, bought with real money, spent on speed only. */
+  cyberCoins?: number;
+  /** Turbo (2x process speed) active until this time (ms). */
+  turboUntil?: number;
+  missionStars?: Record<string, number>;
+  dailyStreak?: { dayKey: string; count: number };
+  operationLog?: Record<string, number>;
   discoveredIps: string[];
   hackedIps: string[];
 
@@ -423,6 +463,7 @@ export interface Player {
   completedStoryChapters: string[];
   factionReputation: Record<FactionType, number>;
   activeFactionAlignment?: FactionType;
+  factionSwitchedAt?: number;
   unlockedStoryPerks: StoryPerk[];
   activeStoryChapterId?: string;
   lockdownUntil?: number;

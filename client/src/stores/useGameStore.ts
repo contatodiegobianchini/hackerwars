@@ -28,9 +28,11 @@ import { sounds } from '../utils/audio.js';
 import { soundtrack } from '../utils/soundtrack.js';
 import { getAuthToken, setAuthToken, removeAuthToken } from '../utils/tokenStorage.js';
 import confetti from 'canvas-confetti';
+import { bestSoftware } from '../game/bestSoftware.js';
 
 export type GameView =
   | 'my_server'
+  | 'machine'
   | 'target_server'
   | 'software'
   | 'processes'
@@ -48,6 +50,7 @@ export type GameView =
   | 'logs'
   | 'leaderboard'
   | 'tutorial'
+  | 'shop'
   | 'admin_panel';
 
 export interface ToastItem {
@@ -89,6 +92,12 @@ interface GameState {
   contracts: DarknetContract[];
   auctions: DarknetAuctionItem[];
   isTerminalOpen: boolean;
+  isChatOpen: boolean;
+  focusChapterId: string | null;
+  openChapter: (chapterId: string) => void;
+  chatSeenCount: number;
+  setChatOpen: (open: boolean) => void;
+  toggleChat: () => void;
   isJumpscareVideoPlaying: boolean;
   isSoundtrackPlaying: boolean;
   isMobileMenuOpen: boolean;
@@ -146,6 +155,10 @@ interface GameState {
   disconnectTarget: () => void;
   startProcess: (type: ProcessType, params: { targetIp?: string; targetFileId?: string; targetFileName?: string; softwareId?: string; details?: any }) => void;
   cancelProcess: (processId: string) => void;
+  speedUpProcess: (processId: string) => void;
+  buyTurbo: (offerId: string) => void;
+  buyCoinPackage: (packageId: string) => Promise<void>;
+  confirmCoinPurchase: (sessionId: string) => Promise<void>;
   bankTransfer: (sourceAcc: string, destAcc: string, amount: number, bankIp: string) => void;
   upgradeHardware: (type: 'cpu' | 'gpu' | 'ram' | 'hdd' | 'network' | 'vpn' | 'cooling') => void;
   acceptMission: (missionId: string) => void;
@@ -195,6 +208,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   auctions: [],
   adminUsers: [],
   isTerminalOpen: false,
+  isChatOpen: false,
+  focusChapterId: null,
+  chatSeenCount: 0,
   isJumpscareVideoPlaying: false,
   isSoundtrackPlaying: true,
   isMobileMenuOpen: false,
@@ -205,9 +221,18 @@ export const useGameStore = create<GameState>((set, get) => ({
   currentView: 'my_server',
 
   setCurrentView: (view) => {
+    // DarkIRC is a side panel available in every zone, not a page.
+    if (view === 'dark_chat') { get().setChatOpen(true); return; }
     sounds.click();
     set({ currentView: view, isMobileMenuOpen: false });
   },
+  setChatOpen: (open) => set(state => ({
+    isChatOpen: open,
+    isMobileMenuOpen: false,
+    chatSeenCount: state.darkChatChannels.reduce((n, c) => n + (c.messages?.length || 0), 0),
+  })),
+  openChapter: (chapterId) => { sounds.click(); set({ focusChapterId: chapterId, currentView: 'campaign', isMobileMenuOpen: false }); },
+  toggleChat: () => { sounds.click(); get().setChatOpen(!get().isChatOpen); },
   setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
   toggleMobileMenu: () => { sounds.click(); set(state => ({ isMobileMenuOpen: !state.isMobileMenuOpen })); },
   toggleTerminal: () => { sounds.click(); set(state => ({ isTerminalOpen: !state.isTerminalOpen })); },
@@ -275,7 +300,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setMiningCoin: (coinId) => { get().socket?.emit('set_mining_coin', { coinId }); },
   toggleProxyHop: (hopIp) => { get().socket?.emit('toggle_proxy_hop', { hopIp }); },
   clearProxyChain: () => { get().socket?.emit('clear_proxy_chain'); },
-  runAntivirusScan: () => { const { startProcess, player } = get(); if (!player) return; const av = player.software.find(s => s.type === 'antivirus'); startProcess('antivirus_scan', { targetFileName: `${av?.name || 'AegisScanner'} (Varredura Completa)` }); },
+  runAntivirusScan: () => { const { startProcess, player } = get(); if (!player) return; const av = bestSoftware(player.software, 'antivirus'); startProcess('antivirus_scan', { targetFileName: `${av?.name || 'AegisScanner'} (Varredura Completa)` }); },
   cleanInfection: (infectionId) => { get().socket?.emit('clean_infection', { infectionId }); },
   toggleHoneypot: () => { get().socket?.emit('toggle_honeypot'); },
   defendNpcInvasion: (method) => { get().socket?.emit('defend_npc_invasion', { method }); },
@@ -334,6 +359,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     socket.on('mission_accepted', (res) => { if (res.success) set({ player: res.player, missions: res.missions }); else get().addToast('Missão', res.message || 'Não foi possível aceitar a missão', 'warning'); });
     socket.on('mission_claimed', (res) => { if (res.success) { set({ player: res.player, missions: res.missions }); get().addToast('Missão Concluída!', res.message, 'success'); sounds.cash(); confetti({ particleCount: 80, spread: 70 }); } else get().addToast('Objetivo Incompleto', res.message, 'warning'); });
     socket.on('faction_alignment_result', (res) => { if (res.player) set({ player: res.player }); if (res.darkChatChannels) set({ darkChatChannels: res.darkChatChannels }); get().addToast('Facção Atualizada!', res.message, res.success ? 'success' : 'danger'); });
+    socket.on('secret_found', (res) => {
+      set(state => ({ player: res.player || state.player, servers: res.servers || state.servers }));
+      if (res.loot) get().addToast(`Cofre encontrado (${res.found}/${res.total})`, `${res.fileName}: +US$ ${res.loot.cash.toLocaleString('pt-BR')}${res.loot.btc ? `, +${res.loot.btc} BTC` : ''} e +${res.loot.rep} de reputação.`, 'success');
+      if (res.discoveredIp) get().addToast('Pista encontrada', `${res.clueText || res.fileName} Novo alvo: ${res.discoveredHost || res.discoveredIp} (${res.discoveredIp}).`, 'info');
+    });
+    socket.on('ip_discovered', (res) => {
+      if (res?.success) {
+        set(state => ({ player: res.player || state.player, servers: res.servers || state.servers }));
+        get().addToast('Varredura concluída', res.message, 'info');
+      } else if (res?.message) get().addToast('Varredura', res.message, 'warning');
+    });
+    socket.on('missions_update', (res) => { if (Array.isArray(res?.missions)) set({ missions: res.missions }); });
+    socket.on('hunt_notice', (res) => { if (res?.title) get().addToast(res.title, res.message, res.tone || 'info'); });
+    socket.on('player_update', (res) => { if (res?.player) set({ player: res.player }); });
+    socket.on('shop_result', (res) => { if (res?.player) set({ player: res.player }); if (res?.message) get().addToast('CyberCoins', res.message, res.success ? 'success' : 'warning'); });
+    socket.on('story_chapters_update', (res) => { if (res.storyChapters) set({ storyChapters: res.storyChapters }); if (res.player) set({ player: res.player }); });
     socket.on('story_choice_result', (res) => { if (res.player) set({ player: res.player }); if (res.storyChapters) set({ storyChapters: res.storyChapters }); if (res.darkChatChannels) set({ darkChatChannels: res.darkChatChannels }); get().addToast('Modo História', res.message, res.success ? 'success' : 'danger'); });
     socket.on('disconnect', () => { /* Socket.IO reconnects automatically. */ });
     set({ socket });
@@ -343,6 +384,27 @@ export const useGameStore = create<GameState>((set, get) => ({
   disconnectTarget: () => { get().socket?.emit('disconnect_target'); set({ activeConnection: null, currentView: 'my_server' }); },
   startProcess: (type, params) => { const socket = get().socket; if (socket) socket.emit('start_process', { type, ...params }); },
   cancelProcess: (processId) => { get().socket?.emit('cancel_process', { processId }); },
+  speedUpProcess: (processId) => { get().socket?.emit('speed_up_process', { processId }); },
+  buyTurbo: (offerId) => { get().socket?.emit('buy_turbo', { offerId }); },
+  buyCoinPackage: async (packageId) => {
+    try {
+      const res = await fetch('/api/shop/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${get().token || getAuthToken() || ''}` }, body: JSON.stringify({ packageId }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) { window.location.href = data.url; return; }
+      get().addToast('CyberCoins', data.error || 'Não foi possível abrir o pagamento.', 'danger');
+    } catch { get().addToast('CyberCoins', 'Sem conexão com o servidor de pagamentos.', 'danger'); }
+  },
+  confirmCoinPurchase: async (sessionId) => {
+    try {
+      const res = await fetch(`/api/shop/verify?session_id=${encodeURIComponent(sessionId)}`, { headers: { Authorization: `Bearer ${get().token || getAuthToken() || ''}` } });
+      const data = await res.json().catch(() => ({}));
+      if (data.player) set({ player: data.player });
+      if (data.status === 'credited') get().addToast('CyberCoins recebidas', `+${data.coins} CyberCoins na sua conta.`, 'success');
+      else if (data.status === 'already') get().addToast('CyberCoins', 'Essa compra já foi creditada.', 'info');
+      else if (data.status === 'unpaid') get().addToast('CyberCoins', 'O pagamento ainda não foi confirmado. Se você pagou, as moedas chegam em instantes.', 'warning');
+      else get().addToast('CyberCoins', data.error || 'Não foi possível confirmar o pagamento.', 'danger');
+    } catch { get().addToast('CyberCoins', 'Não foi possível confirmar o pagamento agora.', 'danger'); }
+  },
   bankTransfer: (sourceAcc, destAcc, amount, bankIp) => { get().socket?.emit('bank_transfer', { sourceAcc, destAcc, amount, bankIp }); },
   upgradeHardware: (type) => { get().socket?.emit('upgrade_hardware', { type }); },
   acceptMission: (missionId) => { get().socket?.emit('accept_mission', { missionId }); },

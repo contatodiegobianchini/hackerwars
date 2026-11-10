@@ -18,9 +18,15 @@ import {
   DarkChatChannel,
   DarkChatMessage,
   FactionType,
-  AdminUserData
+  AdminUserData,
+  PendingHunt,
 } from '../types/game.js';
 import { MissionEngine } from './MissionEngine.js';
+import { HUNT_KIND_TEXT, reconcileHunts } from './HuntEngine.js';
+import { traceHeatSeconds } from './traceHeat.js';
+import { applySecretDownload, ensureSecrets } from './secrets.js';
+import { reconcileAccess, reconcilePatch, recordBreach, touchAccess } from './WorldReaction.js';
+import { LOW_MID_TEMPLATES, buildTargetServer, ensureTargets, inBand, pickInBand, scanBand, withRange, type Band } from './targetCatalog.js';
 import { CryptoEngine } from './CryptoEngine.js';
 import { BlackMarketEngine } from './BlackMarketEngine.js';
 import { DefenseEngine } from './DefenseEngine.js';
@@ -34,12 +40,17 @@ import { CPU_TIERS, GPU_TIERS, RAM_TIERS, HDD_TIERS, NETWORK_TIERS, VPN_TIERS, C
 import { db, dbHelpers } from '../database/sqlite.js';
 import { v4 as uuidv4 } from 'uuid';
 import { randomInt, getRandomValues } from 'crypto';
+import { bestSoftware } from './bestSoftware.js';
 
 function secureRandom(): number {
   const buf = new Uint32Array(1);
   getRandomValues(buf);
   return buf[0] / 0x100000000;
 }
+
+export const FACTION_SWITCH_FEE = 5000;
+export const FACTION_SWITCH_FREE_REP = 1000;
+export const FACTION_SWITCH_COOLDOWN_MS = 30 * 60 * 1000;
 
 export class GameWorld {
   private players: Map<string, { userId: string; player: Player }> = new Map();
@@ -63,6 +74,8 @@ export class GameWorld {
       this.servers.set(srv.ip, srv);
       this.indexServerBankAccounts(srv);
     });
+    // Hidden servers and clue files (also added to worlds saved before they existed).
+    for (const srv of [...ensureTargets(this.servers), ...ensureSecrets(this.servers)]) { (this as any).indexServerBankAccounts?.(srv); dbHelpers.saveServer(srv); }
 
     this.missionEngine = new MissionEngine();
     this.cryptoEngine = new CryptoEngine();
@@ -81,6 +94,9 @@ export class GameWorld {
       this.startNpcSecurityTicker();
       this.startVpsAndInvasionTicker();
       this.startSpywareSnifferTicker();
+      this.startHuntTicker();
+      this.startContractBoardTicker();
+      this.startWorldReactionTicker();
     }
   }
 
@@ -240,7 +256,8 @@ export class GameWorld {
   }
 
   public getAllServers(): VirtualServer[] {
-    return Array.from(this.servers.values());
+    // Hidden servers only reach a player through their discovered list.
+    return Array.from(this.servers.values()).filter(s => !s.hidden);
   }
 
   public getDiscoveredServers(userId: string = 'user-zero-cool-1'): VirtualServer[] {
@@ -563,6 +580,8 @@ export class GameWorld {
       hops,
       vpnDelay,
       (tracedServer) => {
+        // Remembered for the "not traced" style star on contracts.
+        player.tracedIps = { ...(player.tracedIps || {}), [tracedServer.ip]: Date.now() };
         if (tracedServer.type === 'cartel') {
           // CARTEL RETALIATION JUMPSCARE & 5-MIN LOCKDOWN!
           const durationMs = 5 * 60 * 1000; // 5 minutes
@@ -589,11 +608,157 @@ export class GameWorld {
       }
     ) || undefined;
 
+    player.connectedIp = server.ip;
+    if (player.hackedIps.includes(server.ip)) touchAccess(player, server.ip);
+    this.savePlayerState(userId);
     return { success: true, server, traceState };
+  }
+
+  /** IP that a server's logs record: the last proxy hop when the player routes through proxies. */
+  public traceableIp(player: Player): string {
+    const chain = player.activeProxyChain || [];
+    return chain.length > 0 ? chain[chain.length - 1] : player.ip;
   }
 
   public disconnectServer(userId: string) {
     this.proxyTraceEngine.stopTrace(userId);
+    const player = this.players.get(userId)?.player;
+    if (player?.connectedIp) {
+      delete player.connectedIp;
+      this.savePlayerState(userId);
+      this.runHuntsFor(userId, player);
+    }
+  }
+
+  // --- Consequências por deixar rastros (HuntEngine) ---
+
+  public emitTo(userId: string, event: string, payload: unknown) {
+    const io = (this.proxyTraceEngine as any)['io'];
+    io?.to(userId).emit(event, payload);
+  }
+
+  private isOnline(userId: string): boolean {
+    const io = (this.proxyTraceEngine as any)['io'];
+    return (io?.sockets?.adapter?.rooms?.get(userId)?.size || 0) > 0;
+  }
+
+  private startContractBoardTicker() {
+    const refresh = () => {
+      if (this.missionEngine.refreshBoard(Array.from(this.servers.values()))) {
+        const io = (this.proxyTraceEngine as any)['io'];
+        io?.emit('missions_update', { missions: this.missionEngine.getAvailableMissions() });
+      }
+    };
+    refresh();
+    const timer = setInterval(refresh, 60_000);
+    timer.unref?.();
+  }
+
+  /** Quest-related servers are never patched or rotated, so nobody gets stuck. */
+  private questIps(): Set<string> {
+    const ips = new Set<string>();
+    for (const c of this.storyEngine.getChapters()) for (const o of c.objectives) ips.add(o.targetIp);
+    for (const m of this.missionEngine.getAvailableMissions()) ips.add(m.targetIp);
+    for (const c of this.contractsAndRaidEngine.getContracts()) ips.add(c.targetIp);
+    for (const { player } of this.players.values()) for (const m of player.activeMissions || []) ips.add(m.targetIp);
+    return ips;
+  }
+
+  private startWorldReactionTicker() {
+    const timer = setInterval(() => {
+      try { this.runWorldReaction(); } catch (e) { console.error('[world]', e); }
+    }, 60_000);
+    timer.unref?.();
+  }
+
+  public runWorldReaction(now = Date.now()) {
+    const quest = this.questIps();
+    for (const server of this.servers.values()) {
+      const result = reconcilePatch(server, now, quest.has(server.ip));
+      if (!result) continue;
+      dbHelpers.saveServer(server);
+      if (result === 'patched') {
+        this.addNews(`${server.hostname} aplica patch de segurança após ondas de invasão (Hasher ${server.security.hasherLevel.toFixed(1)}).`, 'BREACH');
+      }
+    }
+    for (const { userId, player } of this.players.values()) {
+      const revoked = reconcileAccess(player, this.servers, quest, now);
+      if (!revoked.length) continue;
+      const names = revoked.map(ip => this.servers.get(ip)?.hostname || ip);
+      this.emitTo(userId, 'hunt_notice', {
+        tone: 'warning',
+        title: 'Senha trocada',
+        message: `Os administradores de ${names.join(', ')} rotacionaram as senhas. Seu acesso root se foi: quebre a senha de novo.`,
+      });
+      this.savePlayerState(userId);
+      this.emitTo(userId, 'player_update', { player });
+    }
+  }
+
+  private startHuntTicker() {
+    const timer = setInterval(() => {
+      for (const { userId, player } of this.players.values()) {
+        try { this.runHuntsFor(userId, player); } catch (e) { console.error('[hunt]', e); }
+      }
+    }, 10_000);
+    timer.unref?.();
+  }
+
+  public runHuntsFor(userId: string, player: Player) {
+    const { due, opened, cancelled } = reconcileHunts(player, this.servers.values());
+    if (!due.length && !opened.length && !cancelled.length) return;
+
+    for (const hunt of opened) {
+      const minutes = Math.round((hunt.dueAt - hunt.createdAt) / 60_000);
+      this.emitTo(userId, 'hunt_notice', {
+        tone: 'warning',
+        title: 'Você deixou rastros',
+        message: `Seu IP ficou nos logs de ${hunt.hostname}. Em ${minutes} min ${HUNT_KIND_TEXT[hunt.kind]}. Volte e apague os logs para evitar.`,
+      });
+    }
+    for (const hunt of cancelled) {
+      this.emitTo(userId, 'hunt_notice', { tone: 'success', title: 'Rastros apagados', message: `Ninguém vai atrás de você por ${hunt.hostname}.` });
+    }
+    for (const hunt of due) this.resolveHunt(userId, player, hunt);
+
+    this.savePlayerState(userId);
+    this.emitTo(userId, 'player_update', { player });
+  }
+
+  private resolveHunt(userId: string, player: Player, hunt: PendingHunt) {
+    const online = this.isOnline(userId);
+    const loseRoot = () => { player.hackedIps = player.hackedIps.filter(ip => ip !== hunt.ip); };
+    const fine = (pct: number, min: number) => {
+      const value = Math.min(player.cash, Math.max(min, Math.round(player.cash * pct)));
+      player.cash -= value;
+      if (player.bankAccounts?.[0]) player.bankAccounts[0].balance = player.cash;
+      return value;
+    };
+    let message = '';
+
+    if (hunt.kind === 'reset') {
+      loseRoot();
+      message = `O administrador de ${hunt.hostname} achou seus rastros e trocou a senha. Você perdeu o acesso root.`;
+      this.addNews(`Administrador de ${hunt.hostname} detecta invasão e troca todas as senhas.`, 'BREACH');
+    } else if (hunt.kind === 'fine' || !online) {
+      const value = fine(hunt.kind === 'fine' ? 0.1 : 0.15, 500);
+      loseRoot();
+      message = `A segurança de ${hunt.hostname} identificou você pelos logs: multa de US$ ${value.toLocaleString('pt-BR')} e perda do acesso root.`;
+      this.addNews(`${hunt.hostname} identifica o hacker ${player.username} pelos logs de acesso e aplica multa.`, 'POLICE');
+    } else if (hunt.kind === 'raid') {
+      this.contractsAndRaidEngine.triggerPoliceRaid(player, 'FBI Cyber Division', `Rastros deixados nos logs de ${hunt.hostname} (${hunt.ip}) levaram os agentes até você.`);
+      message = `A polícia federal seguiu seus rastros em ${hunt.hostname}. Defenda-se da batida!`;
+      this.addNews(`Polícia federal rastreia invasor de ${hunt.hostname} a partir dos logs de acesso.`, 'POLICE');
+    } else {
+      player.lockdownUntil = Date.now() + 5 * 60_000;
+      this.emitTo(userId, 'cartel_jumpscare_event', {
+        player, lockdownUntil: player.lockdownUntil, lockdownDurationSec: 300,
+        message: `O cartel seguiu seus rastros em ${hunt.hostname} e mandou sicários até seu esconderijo!`,
+      });
+      message = `O cartel seguiu seus rastros em ${hunt.hostname}.`;
+      this.addNews(`RETALIAÇÃO DO CARTEL: ${player.username} deixou rastros em ${hunt.hostname} e foi localizado.`, 'BREACH');
+    }
+    this.emitTo(userId, 'hunt_notice', { tone: 'danger', title: 'Te acharam', message });
   }
 
   public portScan(userId: string, targetIp: string): { success: boolean; server?: VirtualServer; message?: string } {
@@ -606,8 +771,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `PORT SCAN detectado a partir de ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `PORT SCAN detectado a partir de ${this.traceableIp(player)}`,
     });
 
     dbHelpers.saveServer(server);
@@ -624,14 +789,16 @@ export class GameWorld {
       player.hackedIps.push(targetIp);
       player.reputation += server.rewardRep || 50;
     }
+    touchAccess(player, targetIp);
+    recordBreach(server);
 
     if (!server.logs) server.logs = [];
     server.logs.unshift({
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `ACESSO ROOT CONCEDIDO via exploit por ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `ACESSO ROOT CONCEDIDO via exploit por ${this.traceableIp(player)}`,
     });
 
     this.savePlayerState(userId);
@@ -671,12 +838,20 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `Download de arquivo: ${file.name} (${file.sizeMb}MB) por ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `Download de arquivo: ${file.name} (${file.sizeMb}MB) por ${this.traceableIp(player)}`,
     });
 
     this.savePlayerState(userId);
     dbHelpers.saveServer(server);
+    const secret = applySecretDownload(player, server, file, this.servers);
+    if (secret) {
+      this.savePlayerState(userId);
+      const lootKeys = new Set(Array.from(this.servers.values()).flatMap(sv => (sv.files || []).filter(f => f.loot).map(f => `${sv.ip}:${f.name}`)));
+      const found = (player.secretsFound || []).filter(k => lootKeys.has(k)).length;
+      this.emitTo(userId, 'secret_found', { ...secret, found, total: lootKeys.size, player, servers: this.getDiscoveredServers(userId) });
+      if (secret.loot) this.addNews(`Alguém achou um cofre escondido em ${server.hostname}. Ninguém sabe quem.`, 'BREACH');
+    }
     return { success: true, file };
   }
 
@@ -714,8 +889,8 @@ export class GameWorld {
         id: `log-${uuidv4().substring(0, 8)}`,
         timestamp: Date.now(),
         formattedTime: new Date().toLocaleTimeString(),
-        ip: player.ip,
-        action: `PROCESSO DAEMON INJETADO: CryptoMinerX v${soft.version} iniciado em background por ${player.ip}`,
+        ip: this.traceableIp(player),
+        action: `PROCESSO DAEMON INJETADO: CryptoMinerX v${soft.version} iniciado em background por ${this.traceableIp(player)}`,
       });
 
       this.savePlayerState(userId);
@@ -738,8 +913,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `Upload de arquivo: ${soft.name} (v${soft.version}) por ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `Upload de arquivo: ${soft.name} (v${soft.version}) por ${this.traceableIp(player)}`,
     });
 
     this.savePlayerState(userId);
@@ -754,7 +929,7 @@ export class GameWorld {
     const server = this.servers.get(targetIp);
     if (!server) return { chance: 0, playerPower: 0, targetDefense: 0 };
 
-    const botnet = player.software.find(s => s.type === 'ddos');
+    const botnet = bestSoftware(player.software, 'ddos');
     const botnetVer = botnet ? botnet.version : 1.0;
 
     // VPS Amplifier Bonus
@@ -782,8 +957,8 @@ export class GameWorld {
         id: `log-${uuidv4().substring(0, 8)}`,
         timestamp: Date.now(),
         formattedTime: new Date().toLocaleTimeString(),
-        ip: player.ip,
-        action: `ATAQUE DDOS BLOQUEADO: Defesas de firewall absorveram o ataque originado de ${player.ip}`,
+        ip: this.traceableIp(player),
+        action: `ATAQUE DDOS BLOQUEADO: Defesas de firewall absorveram o ataque originado de ${this.traceableIp(player)}`,
       });
       dbHelpers.saveServer(server);
       return {
@@ -800,8 +975,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `ALERTA CRÍTICO: ATAQUE DDOS BEM-SUCEDIDO! Servidor sobrecarregado e offline a partir de ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `ALERTA CRÍTICO: ATAQUE DDOS BEM-SUCEDIDO! Servidor sobrecarregado e offline a partir de ${this.traceableIp(player)}`,
     });
 
     player.reputation += 120;
@@ -849,13 +1024,36 @@ export class GameWorld {
     };
   }
 
+  private isQuestFile(targetIp: string, fileName: string): boolean {
+    const name = (fileName || '').toLowerCase();
+    if (!name) return false;
+    const inMissions = this.missionEngine.getAvailableMissions()
+      .some(m => m.targetIp === targetIp && m.requiredFileName?.toLowerCase() === name);
+    if (inMissions) return true;
+    const inContracts = this.contractsAndRaidEngine.getContracts()
+      .some(c => c.targetIp === targetIp && c.targetFileName?.toLowerCase() === name);
+    if (inContracts) return true;
+    return this.storyEngine.getChapters()
+      .some(c => c.objectives.some(o => o.targetIp === targetIp && o.targetFileName?.toLowerCase() === name));
+  }
+
   public deleteRemoteFile(userId: string, targetIp: string, fileId: string): { success: boolean; message?: string } {
     const player = this.getOrCreatePlayer(userId);
     const server = this.servers.get(targetIp);
     if (!server) return { success: false, message: 'Servidor não encontrado' };
 
+    if (!player.hackedIps.includes(server.ip)) {
+      return { success: false, message: 'Acesso negado: é preciso acesso ROOT (Crack) para apagar arquivos deste servidor.' };
+    }
+
     const index = server.files.findIndex(f => f.id === fileId);
     if (index === -1) return { success: false, message: 'Arquivo não encontrado' };
+
+    // Servers are shared by every player: deleting a contract/campaign file would
+    // make that objective impossible for everyone else.
+    if (this.isQuestFile(server.ip, server.files[index].name) || server.files[index].clueIp || server.files[index].loot) {
+      return { success: false, message: 'Este arquivo é alvo de um contrato ativo na rede e está protegido contra exclusão.' };
+    }
 
     const [deleted] = server.files.splice(index, 1);
     if (!server.logs) server.logs = [];
@@ -863,8 +1061,8 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
-      action: `Arquivo removido: ${deleted.name} por ${player.ip}`,
+      ip: this.traceableIp(player),
+      action: `Arquivo removido: ${deleted.name} por ${this.traceableIp(player)}`,
     });
 
     dbHelpers.saveServer(server);
@@ -878,6 +1076,35 @@ export class GameWorld {
     server.logs = [];
     dbHelpers.saveServer(server);
     return { success: true, message: 'Todos os logs do servidor remoto foram apagados.' };
+  }
+
+  /** Player-initiated log wipe: requires ROOT on the target and counts for missions. */
+  public wipeRemoteLogsAsPlayer(userId: string, targetIp: string): { success: boolean; message?: string } {
+    const player = this.getOrCreatePlayer(userId);
+    const server = this.servers.get(targetIp);
+    if (!server) return { success: false, message: 'Servidor não encontrado' };
+    if (!player.hackedIps.includes(server.ip)) {
+      return { success: false, message: 'Acesso negado: é preciso acesso ROOT (Crack) para apagar os logs deste servidor.' };
+    }
+    const result = this.wipeRemoteLogs(server.ip);
+    if (result.success) {
+      this.proxyTraceEngine.addHeat(userId, server.ip, traceHeatSeconds('wipelog'), 'limpeza de logs');
+      this.missionEngine.recordOperation(player, 'wipe_logs', server.ip);
+      this.savePlayerState(userId);
+      this.runHuntsFor(userId, player);
+    }
+    return result;
+  }
+
+  /** Player-initiated log edit: requires ROOT on the target. */
+  public editLogAsPlayer(userId: string, targetIp: string, logId: string, newContent: string): { success: boolean; message?: string } {
+    const player = this.getOrCreatePlayer(userId);
+    const server = this.servers.get(targetIp);
+    if (!server) return { success: false, message: 'Servidor não encontrado' };
+    if (!player.hackedIps.includes(server.ip)) {
+      return { success: false, message: 'Acesso negado: é preciso acesso ROOT (Crack) para editar os logs deste servidor.' };
+    }
+    return this.editLogEntry(server.ip, logId, String(newContent ?? '').slice(0, 500));
   }
 
   public editLogEntry(targetIp: string, logId: string, newContent: string): { success: boolean; message?: string } {
@@ -990,7 +1217,7 @@ export class GameWorld {
       id: `log-${uuidv4().substring(0, 8)}`,
       timestamp: Date.now(),
       formattedTime: new Date().toLocaleTimeString(),
-      ip: player.ip,
+      ip: this.traceableIp(player),
       action: `TRANSFERÊNCIA BANCÁRIA: $${amount} de ${sourceAccNum} para ${destAccNum}`,
     });
 
@@ -1047,7 +1274,24 @@ export class GameWorld {
     };
   }
 
-  public generateProceduralServer(userId: string = 'user-zero-cool-1'): VirtualServer {
+  /** Network scan: reveals a known-but-unseen server, or generates a new one. Never reveals hidden servers. */
+  public discoverRandomIp(userId: string): { success: boolean; server?: VirtualServer; message: string } {
+    const player = this.getOrCreatePlayer(userId);
+    const band = scanBand(bestSoftware(player.software, 'cracker')?.version ?? 1);
+    const unseen = Array.from(this.servers.values()).filter(s => !s.hidden && s.type !== 'honeypot' && !player.discoveredIps.includes(s.ip));
+    const inReach = unseen.filter(s => inBand(s.security.hasherLevel, band));
+    let server: VirtualServer;
+    if (inReach.length > 0) {
+      server = inReach[Math.floor(Math.random() * inReach.length)];
+      player.discoveredIps.push(server.ip);
+      this.savePlayerState(userId);
+    } else {
+      server = this.generateProceduralServer(userId, band);
+    }
+    return { success: true, server, message: `Varredura encontrou ${server.hostname} (${server.ip}).` };
+  }
+
+  public generateProceduralServer(userId: string = 'user-zero-cool-1', band?: Band): VirtualServer {
     const targetPool = [
       // 1. Corporações e Tech
       { name: 'Pear Inc. Cloud Storage', domain: 'cloud.pear-inc.com', type: 'corporate' as const, desc: 'Datacenter corporativo da fabricante de smartphones de luxo.' },
@@ -1087,98 +1331,21 @@ export class GameWorld {
       { name: 'Pentágono Nuclear CyberGrid', domain: 'norad-core.defense-gov.mil', type: 'government' as const, desc: 'Supercomputador militar de contenção balística. Segurança de nível 50.0!' },
     ];
 
-    const pick = targetPool[randomInt(0, targetPool.length)];
-    const nodeSuffix = randomInt(100, 1000);
-    const ip = `${randomInt(11, 211)}.${randomInt(0, 256)}.${randomInt(0, 256)}.${randomInt(2, 252)}`;
-
-    // Tiered hasher and firewall levels by target category
-    let hasherLevel = 1.5;
-    let firewallLevel = 1.2;
-    if (pick.type === 'government') {
-      hasherLevel = Number((secureRandom() * 25 + 25).toFixed(1)); // v25.0 - v50.0
-      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 3).toFixed(1));
-    } else if (pick.type === 'cartel' || pick.type === 'bank') {
-      hasherLevel = Number((secureRandom() * 15 + 12).toFixed(1)); // v12.0 - v27.0
-      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 2).toFixed(1));
-    } else if (pick.type === 'corporate') {
-      hasherLevel = Number((secureRandom() * 14 + 6).toFixed(1)); // v6.0 - v20.0
-      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 2).toFixed(1));
-    } else {
-      hasherLevel = Number((secureRandom() * 4 + 1.2).toFixed(1)); // v1.2 - v5.2
-      firewallLevel = Number(Math.max(1.0, hasherLevel - secureRandom() * 1).toFixed(1));
-    }
-
-    const isHighTier = hasherLevel >= 15.0;
-    const isCartelOrBank = pick.type === 'cartel' || pick.type === 'bank';
-
-    const hostnameSlug = pick.domain.split('.')[0] + `-node${nodeSuffix}`;
-    const hostname = `${hostnameSlug}.${pick.domain.split('.').slice(1).join('.')}`;
-
-    const srv: VirtualServer = {
-      id: `srv-${uuidv4().substring(0, 8)}`,
-      ip,
-      hostname: `${pick.name} (#${nodeSuffix})`,
-      domain: hostname,
-      type: pick.type,
-      isOnline: true,
-      description: pick.desc,
-      hardware: {
-        cpuPower: Number((hasherLevel * 0.7 + 2.5).toFixed(1)),
-        ramGb: isHighTier ? 256 : (isCartelOrBank ? 64 : 16),
-        hddMb: isHighTier ? 150000 : (isCartelOrBank ? 25000 : 5000),
-        networkMbps: isHighTier ? 5000 : (isCartelOrBank ? 1000 : 100),
-      },
-      security: {
-        hasherLevel,
-        firewallLevel,
-        password: `key_${randomInt(10000, 100000)}`,
-        isBreached: false,
-        openPorts: [
-          { port: 80, service: 'HTTP', open: true, version: 'Nginx 1.24' },
-          { port: 22, service: 'SSH', open: true, version: 'OpenSSH 9.0' },
-          ...(isCartelOrBank ? [{ port: 443, service: 'TLS_VAULT', open: true, version: 'SecureVault v3' }] : []),
-          ...(hasherLevel >= 30 ? [{ port: 9999, service: 'QUANTUM_PORT', open: true, version: 'QuantumGateway v5' }] : []),
-        ],
-      },
-      files: [
-        {
-          id: `file-${uuidv4().substring(0, 8)}`,
-          name: `dados_confidenciais_${nodeSuffix}.dat`,
-          type: 'warez',
-          version: Number(hasherLevel.toFixed(1)),
-          sizeMb: Math.round(hasherLevel * 15 + 20),
-          isInstalled: false,
-        },
-        ...(hasherLevel >= 6.0 ? [{
-          id: `file-${uuidv4().substring(0, 8)}`,
-          name: `CrackMaster_v${hasherLevel.toFixed(1)}.crc`,
-          type: 'cracker' as const,
-          version: Number(hasherLevel.toFixed(1)),
-          sizeMb: Math.round(hasherLevel * 2 + 10),
-          isInstalled: false,
-        }] : []),
-      ],
-      bankAccounts: isCartelOrBank ? [
-        {
-          accountNumber: `ACC-${randomInt(10000, 100000)}`,
-          bankIp: '12.189.44.10',
-          bankName: 'MegaBank Global',
-          balance: Math.round(hasherLevel * 15000 + secureRandom() * 25000),
-          password: `secret_${nodeSuffix}`,
-          ownerName: pick.name,
-        }
-      ] : undefined,
-      logs: [],
-      activeMiners: [],
-      rewardCash: Math.round(hasherLevel * 3500 + 1000),
-      rewardRep: Math.round(hasherLevel * 450 + 150),
-    };
+    const templates = [
+      ...targetPool.map(x => withRange(x.name, x.domain, x.type, x.desc)),
+      ...LOW_MID_TEMPLATES,
+    ];
+    const player = this.getOrCreatePlayer(userId);
+    const rng = () => secureRandom();
+    const { template, hasher } = pickInBand(templates, band ?? scanBand(bestSoftware(player.software, 'cracker')?.version ?? 1, rng), rng);
+    let ip = '';
+    do { ip = `${randomInt(11, 211)}.${randomInt(0, 256)}.${randomInt(0, 256)}.${randomInt(2, 252)}`; } while (this.servers.has(ip));
+    const srv = buildTargetServer(template, hasher, ip, randomInt(100, 1000), rng);
 
     this.servers.set(ip, srv);
     this.indexServerBankAccounts(srv);
     dbHelpers.saveServer(srv);
 
-    const player = this.getOrCreatePlayer(userId);
     if (!player.discoveredIps.includes(ip)) {
       player.discoveredIps.push(ip);
       this.savePlayerState(userId);
@@ -1308,7 +1475,7 @@ export class GameWorld {
     if (!server) return { success: false, message: 'Servidor alvo não encontrado.' };
     const player = this.getOrCreatePlayer(userId);
 
-    const spywareSoft = player.software.find(s => s.type === 'spyware');
+    const spywareSoft = bestSoftware(player.software, 'spyware');
     const spywareLevel = spywareSoft ? spywareSoft.version : 1.0;
 
     if (!server.activeSpyware) server.activeSpyware = [];
@@ -1375,9 +1542,8 @@ export class GameWorld {
     const server = this.servers.get(targetIp);
     if (!server) return { success: false, message: 'Servidor alvo não encontrado.' };
     if (server.type !== 'bank') return { success: false, message: 'Este alvo não é uma instituição financeira bancária!' };
-    if (!server.security.isBreached) return { success: false, message: 'Acesso ROOT necessário antes de executar o Mega-Assalto!' };
-
     const player = this.getOrCreatePlayer(userId);
+    if (!player.hackedIps.includes(server.ip)) return { success: false, message: 'Acesso ROOT necessário antes de executar o Mega-Assalto!' };
 
     // Calculate massive stolen funds based on bank level
     let bankLoot = Math.round(server.security.hasherLevel * 18000 + 45000 + Math.random() * 25000);
@@ -1577,12 +1743,37 @@ export class GameWorld {
 
   public setFactionAlignment(userId: string, faction: FactionType): { success: boolean; player: Player; message: string } {
     const player = this.getOrCreatePlayer(userId);
+    const validFactions: FactionType[] = ['anonymous', 'russian_bears', 'cartel', 'lone_wolf'];
+    if (!validFactions.includes(faction)) {
+      return { success: false, player, message: 'Facção inválida.' };
+    }
+    if (player.activeFactionAlignment === faction) {
+      return { success: false, player, message: 'Você já está alinhado com esta facção.' };
+    }
+
+    // Switching sides is not free: there is a cooldown and a "bribe" fee, waived
+    // when the player already earned enough standing with the new faction.
+    const now = Date.now();
+    const cooldownMs = FACTION_SWITCH_COOLDOWN_MS;
+    const lastSwitch = player.factionSwitchedAt || 0;
+    if (now - lastSwitch < cooldownMs) {
+      const remainingMin = Math.ceil((cooldownMs - (now - lastSwitch)) / 60000);
+      return { success: false, player, message: `Você trocou de facção recentemente. Aguarde ${remainingMin} min para mudar de lado novamente.` };
+    }
+    const targetRep = player.factionReputation?.[faction] || 0;
+    const fee = targetRep >= FACTION_SWITCH_FREE_REP ? 0 : FACTION_SWITCH_FEE;
+    if (player.cash < fee) {
+      return { success: false, player, message: `Trocar de facção custa $${fee.toLocaleString()} USD (grátis com ${FACTION_SWITCH_FREE_REP} de reputação na facção). Saldo insuficiente.` };
+    }
+    player.cash -= fee;
+    if (player.bankAccounts && player.bankAccounts.length > 0) player.bankAccounts[0].balance = player.cash;
+    player.factionSwitchedAt = now;
     player.activeFactionAlignment = faction;
     this.savePlayerState(userId);
     return {
       success: true,
       player,
-      message: `Você agora está alinhado oficialmente com a facção ${faction.toUpperCase()}!`,
+      message: `Você agora está alinhado oficialmente com a facção ${faction.toUpperCase()}!${fee > 0 ? ` (-$${fee.toLocaleString()} USD)` : ''}`,
     };
   }
 
@@ -1871,6 +2062,7 @@ export class GameWorld {
       this.servers.set(s.ip, s);
       this.indexServerBankAccounts(s);
     });
+    for (const srv of [...ensureTargets(this.servers), ...ensureSecrets(this.servers)]) { (this as any).indexServerBankAccounts?.(srv); dbHelpers.saveServer(srv); }
 
     return {
       success: true,

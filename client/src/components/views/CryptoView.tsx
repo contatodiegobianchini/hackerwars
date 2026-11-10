@@ -319,7 +319,7 @@ export const CryptoView: React.FC = () => {
                   key={cId}
                   onClick={() => setMiningCoin(cId)}
                   className={`px-3 py-1 rounded-lg uppercase transition ${
-                    isActive ? 'bg-white text-black font-bold shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                    isActive ? 'bg-amber-500 text-black font-bold shadow-sm' : 'text-gray-500 hover:text-gray-900'
                   }`}
                 >
                   {cId}
